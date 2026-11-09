@@ -1,0 +1,22 @@
+# 密钥与本地配置
+.env
+
+# 运行时数据：数据库、原始导入文件、备份
+data/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# 编辑器与系统
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+
+# 临时产物
+*.log
+tmp/
+.archify/
