@@ -225,3 +225,28 @@ Copy-Item data\me.db "D:\备份\me-$(Get-Date -Format yyyyMMdd).db"
 - **每周**：搜一次这周记的东西，看看检索顺不顺手——不顺就是该改 `retrieve.py` 的信号
 - **每月**：备份一次 `me.db`，顺便看眼体积
 - **导入历史**：等 P1、P2 用顺了再碰。先有能用的工具，再灌大数据，出问题才知道是工具的还是数据的
+
+---
+
+## 十一、代码存档（只在改了代码时用）
+
+规则见 [decisions-digital-me.md](decisions-digital-me.md) 的 D7：每个功能能跑就提交，两个远程都推。
+
+```powershell
+cd D:\agent\digital-me
+git status                              # 先看改了什么
+git add -A
+git commit -m "feat: 记录与搜索跑通"     # 前缀说明改动类型，描述写中文
+git push gitee main                     # 两个都要推
+git push github main
+```
+
+**推不动怎么办**：本机 git 全局配了代理 `127.0.0.1:10090`，代理软件没开时所有远程都会连不上（包括 gitee）。先把代理开起来再推；也可以临时绕过：
+
+```powershell
+git -c http.proxy= -c https.proxy= push gitee main
+```
+
+绕过只对网络能直连的环境有效，github 基本不行。
+
+**数据不进仓库**：`.env`（含 Key）、`data/`（你的全部记录）、`.archify/`（生成过程的中间产物）都在 `.gitignore` 里。真要不小心提交了密钥，去平台把 Key 作废重发，别只删文件。
