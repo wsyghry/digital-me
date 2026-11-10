@@ -41,7 +41,7 @@
 | `.env` | 你的真实配置与 API Key | 不进 git | 本地生成 |
 | `.gitignore` | 排除密钥、数据、虚拟环境、构建产物 | | ✅ |
 | `requirements.txt` | Python 依赖清单 | 不锁死版本，用 `>=` | ✅ |
-| `run.ps1` | 一键启动：检查环境 → 建 `.venv` → 装依赖 → 起服务 | 不做业务逻辑 | ⏳ P1 |
+| `run.ps1` | 一键启动：检查环境 → 建 `.venv` → 装依赖 → 起服务 | 不做业务逻辑 | ✅ |
 
 ### `docs/` —— 文档区
 
@@ -59,26 +59,26 @@
 
 | 文件 | 作用 | 关键约束 | 阶段 |
 |---|---|---|---|
-| `main.py` | 创建 FastAPI 实例、注册路由、托管 `web/` 静态文件、启动时建库 | 只做组装，不写业务 | ⏳ P1 |
-| `config.py` | 读 `.env`、算绝对路径、定义常量 | 全项目唯一读环境变量的地方 | ⏳ P1 |
-| `api/routes.py` | 所有 HTTP 接口，一个接口一个函数 | 只做：取参数、调 service、返回结果 | ⏳ P1 |
-| `api/schemas.py` | 请求/响应模型（Pydantic），顺带做参数校验与文档 | 不放业务规则 | ⏳ P1 |
-| `db/schema.sql` | 建表、索引、FTS 虚拟表、同步触发器 | 数据结构的唯一出处，改动要同步更新 data-schema.md | ⏳ P1 |
-| `db/store.py` | 连接管理、插入（算指纹去重）、查询、检索、统计 | 唯一可以直接写 SQL 的文件 | ⏳ P1 |
-| `services/retrieve.py` | 把用户输入变成查询：分词、拼短语、两路检索（FTS / LIKE）、排序截断 | 不直接开数据库连接，向 store 要 | ⏳ P1 |
-| `services/llm.py` | 调 DeepSeek：超时、重试、错误翻译成人话 | 唯一发起对外网络请求的文件 | ⏳ P2 |
-| `services/persona.py` | 拼人格提示词：读 `prompts/persona.md` + 抽若干条我自己的真实发言当语气样本 | 不改数据库，只读 | ⏳ P2 |
-| `services/chat.py` | 问答编排：检索命中 → 拼上下文 → 调模型 → 附上引用来源 | 不让模型凭空回答，没命中就说没有 | ⏳ P2 |
-| `services/draft.py` | 拟稿：对方说了什么 + 我想表达什么 → 2 条候选回复 | 只生成草稿，绝不自动发送 | ⏳ P2 |
+| `main.py` | 创建 FastAPI 实例、注册路由、托管 `web/` 静态文件、启动时建库 | 只做组装，不写业务 | ✅ |
+| `config.py` | 读 `.env`、算绝对路径、定义常量 | 全项目唯一读环境变量的地方 | ✅ |
+| `api/routes.py` | 所有 HTTP 接口，一个接口一个函数（清单见下） | 只做：取参数、调 service、返回结果 | ✅ |
+| `api/schemas.py` | 请求/响应模型（Pydantic），顺带做参数校验与文档 | 不放业务规则 | ✅ |
+| `db/schema.sql` | 建表、索引、FTS 虚拟表、同步触发器 | 数据结构的唯一出处，改动要同步更新 data-schema.md | ✅ |
+| `db/store.py` | 连接管理、插入（算指纹去重）、改写、删除、检索、导出、统计 | 唯一可以直接写 SQL 的文件 | ✅ |
+| `services/retrieve.py` | 把用户输入变成查询：分词、拼短语、两路检索（FTS / LIKE）、排序截断 | 不直接开数据库连接，向 store 要 | ✅ |
+| `services/llm.py` | 调 DeepSeek：超时、重试、401/402/429 错误翻译成人话 | 唯一发起对外网络请求的文件 | ✅ |
+| `services/persona.py` | 拼人格提示词：读 `prompts/persona.md` + 取最近几条我自己的真实发言当语气样本 | 不改数据库，只读；样本固定不随机，提示词前缀稳定才能吃缓存价 | ✅ |
+| `services/chat.py` | 问答编排：整句退成二元组检索 → 命中才拼上下文 → 调模型 → 附引用 | 没命中直接回「没记过」，一个 token 都不花 | ✅ |
+| `services/draft.py` | 拟稿：对方说了什么 + 我想表达什么 → 2~3 条候选，会洗掉模型加的编号和引号 | 只生成草稿，绝不自动发送 | ✅ |
 | `services/ingest.py` | 导入：jsonl 逐行校验（时间、正文必填）、算指纹、批量入库、出报告 | 不改写原文 | ⏳ P3 |
 
 ### `app/prompts/` —— 提示词正文
 
 | 文件 | 作用 | 阶段 |
 |---|---|---|
-| `persona.md` | 人格设定：你是谁、怎么说话、什么绝对不许做（编造记忆、替人做决定、透露他人隐私） | ⏳ P2 |
-| `ask.md` | 问答模板：怎么用检索到的片段回答、怎么承认不知道、怎么标注来源 | ⏳ P2 |
-| `draft.md` | 拟稿模板：语气、长度、几条候选、不给什么建议 | ⏳ P2 |
+| `persona.md` | 人格设定：你是谁、怎么说话、什么绝对不许做（编造记忆、替人做决定、透露他人隐私） | ✅ |
+| `ask.md` | 问答模板：怎么用检索到的片段回答、怎么承认不知道、怎么标注来源 | ✅ |
+| `draft.md` | 拟稿模板：语气、长度、两条候选、只输出草稿 | ✅ |
 
 单独成 `.md` 的原因：「像不像你」是这个项目的核心，语气要反复试。改 md 文件不用碰 Python，也不用重启进程。
 
@@ -86,10 +86,10 @@
 
 | 文件 | 作用 | 阶段 |
 |---|---|---|
-| `index.html` | 页面骨架，三个页签：记录 / 搜索 / 分身 | ⏳ P1 |
-| `app.js` | 所有交互，用原生 fetch 调接口 | ⏳ P1 |
-| `style.css` | 样式，暗色为主，对齐个人网站的气质 | ⏳ P1 |
-| `manifest.webmanifest` | 让手机浏览器能「添加到主屏幕」，像 App 一样全屏打开 | ⏳ P1 |
+| `index.html` | 页面骨架，三个页签：记录 / 搜索 / 分身 | ✅ |
+| `app.js` | 所有交互，用原生 fetch 调接口 | ✅ |
+| `style.css` | 样式，暗色为主，对齐个人网站的气质 | ✅ |
+| `manifest.webmanifest` | 让手机浏览器能「添加到主屏幕」，像 App 一样全屏打开 | ✅ |
 
 ### `data/` —— 运行时数据
 
@@ -104,11 +104,33 @@
 
 | 文件 | 作用 | 阶段 |
 |---|---|---|
+| `scripts/backup.py` | 用 SQLite backup API 备份 `me.db`，服务运行中也能安全拷，默认存到 `backups/` | ✅ |
+| `scripts/check.ps1` | 一键自检：venv、28 项单元测试、服务健康、关键文件；只读，不联网不花钱 | ✅ |
 | `scripts/import_jsonl.py` | 命令行批量导入，打印导入报告 | ⏳ P3 |
-| `scripts/backup.ps1` | 把 `me.db` 拷到指定目录，文件名带日期 | ⏳ P4 |
-| `tests/conftest.py` | 测试夹具：每次用临时数据库，绝不碰真实数据 | ⏳ P1 |
-| `tests/test_store.py` | 存储与检索（含两字查询、特殊字符、去重） | ⏳ P1 |
-| `tests/test_api.py` | 接口行为（正常、缺参、超长） | ⏳ P1 |
+| `tests/test_core.py` | 关键路径测试：去重、两字/三字/标点检索、改后重建索引、删除、导出。用临时库，不碰真实数据 | ✅ |
+
+跑测试：
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
+
+> 只覆盖会算错的地方。界面点了好不好看，靠人看，不写测试。
+
+### 接口清单（现在能用的）
+
+| 方法 | 路径 | 干什么 |
+|---|---|---|
+| `POST` | `/api/messages` | 记一条，重复内容返回 `duplicated: true` |
+| `GET` | `/api/messages?limit=&before_id=&start=&end=` | 按时间倒序取一页，`before_id` 往前翻，`start`/`end` 按日期筛 |
+| `PATCH` | `/api/messages/{id}` | 改正文，索引自动跟着重建；改成和别的记录一样会 409 |
+| `DELETE` | `/api/messages/{id}` | 删一条，不存在回 404 |
+| `GET` | `/api/search?q=&start=&end=` | 两路检索：≥3 字走 FTS，短词走 LIKE；可加日期范围 |
+| `GET` | `/api/days` | 日期索引：哪天有几条，给下拉框用 |
+| `GET` | `/api/export.md` | 全部记录导成 Markdown（按日期分组） |
+| `POST` | `/api/chat` | 提问：检索命中才调模型，返回答案 + 引用；没配 Key 回 503 |
+| `POST` | `/api/draft` | 拟稿：`theirs` + `intent` → 2~3 条候选（只出草稿） |
+| `GET` | `/api/health` | 条数、库体积、`llm`（Key 是否已配） |
 
 ---
 
@@ -129,13 +151,35 @@
 3. 词都 ≥3 字 → `db/store.py` 走 FTS5 `MATCH`；有短词 → 走 `LIKE` 兜底
 4. 结果按时间倒序、去重、截断到前 N 条，带上会话名和来源回前端
 
+**按日期翻**
+
+1. `web/app.js` 的日期条（全部 / 今天 / 昨天 / 近 7 天 / 下拉选某天）算出 `start`、`end`
+2. 列表 → `GET /api/messages?start=&end=`；搜索 → `GET /api/search?q=&start=&end=`
+3. `db/store.py` 的 `_date_clause()` 把日期变成 `substr(ts,1,10)` 的比较（`ts` 是带时区的 ISO 串，前 10 位就是本地日期）
+4. 下拉框的可选日期来自 `GET /api/days` → `store.days()`，按天 `GROUP BY` 数条数
+5. 前端拿到结果后按天插小标题（`11月10日 · 周二`），列表与搜索共用 `dayHeadEl()`
+
+**改一条 / 删一条 / 导出**
+
+1. 改：`web/app.js` → `PATCH /api/messages/{id}` → `routes.py` → `store.update_message()` 重算指纹 → `schema.sql` 的触发器同步改 `messages_fts`（改完旧词就搜不到了，测试里专门验这一条）
+2. 删：`DELETE /api/messages/{id}` → `store.delete_message()` → 触发器把索引里的那条一并删掉
+3. 导出：`GET /api/export.md` → `store.export_markdown()` 按日期分组拼 Markdown → 浏览器直接下载
+
 **问一个问题**
 
 1. `web/app.js` → `POST /api/chat`
-2. `services/chat.py` 先调 `retrieve.py` 取相关记录（这就是「记忆」）
-3. `persona.py` 拼系统提示（人格 + 语气样本），`ask.md` 拼问答模板
-4. `llm.py` 调 DeepSeek：只有「问题 + 命中的几条片段」离开本机
-5. 返回答案 + 引用了哪几条记录；没检索到就直说不知道，不外推
+2. `services/chat.py` 调 `retrieve.search_for_question()`：整句在中文里搜不到，先切成相邻两字，按命中的二元组个数排序（这就是「记忆」）
+3. 一条都没命中 → 直接返回「我没记过这件事」，**不调模型、不花钱**
+4. `persona.py` 拼系统提示（人格 + 语气样本），`ask.md` 拼问答模板，只塞命中的那几条
+5. `llm.py` 调 DeepSeek：只有「问题 + 命中的几条片段」离开本机
+6. 返回答案 + 引用了哪几条记录，前端把引用单独列出来
+
+**拟一条回复**
+
+1. `web/app.js` → `POST /api/draft`，带上对方原话 + 我想表达的意思
+2. `services/draft.py` 用同一份人格提示词 + `draft.md` 模板调模型
+3. `parse_candidates()` 洗掉编号、引号、多余空行，最多留 3 条
+4. 前端只渲染草稿 + 「复制」按钮，没有发送入口——发不发由人决定
 
 ---
 

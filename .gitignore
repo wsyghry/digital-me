@@ -3,6 +3,7 @@
 
 # 运行时数据：数据库、原始导入文件、备份
 data/
+backups/
 
 # Python
 .venv/
@@ -20,3 +21,4 @@ desktop.ini
 *.log
 tmp/
 .archify/
+.run.pid

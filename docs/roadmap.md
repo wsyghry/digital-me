@@ -12,12 +12,18 @@
 
 ---
 
-## P1 · 记录与搜索（本机）
+## P1 · 记录与搜索（本机）　✅ 已完成
+
+**完成情况（2026-11-10）**：1~5 全部跑通并实测——记一句话、看列表、搜关键词（三字走 FTS、两字走 LIKE、带标点不报错），重启后数据仍在，手机在同一 WiFi 下已能打开（截图在 `.archify/p1-shots/`）。`run.ps1` 现支持前台、`-Background`、`-Stop`。
+
+**当晚收尾（同一天）**：补了编辑（`PATCH /api/messages/{id}`，改完索引自动重建）、删除（`DELETE`，不存在回 404）、导出 Markdown（`GET /api/export.md`）、搜索词高亮、`tests/test_core.py` 14 项测试、`scripts/backup.py`（服务运行中也能安全备份）。
+
+**日期索引（2026-11-10 晚）**：列表与搜索都支持 `start`/`end` 日期过滤，新增 `GET /api/days`（哪天几条），前端加「全部 / 今天 / 昨天 / 近 7 天」小按钮 + 日期下拉框，列表按天分组显示；测试增至 28 项。
 
 **做什么**
 1. 建 `.venv`，装 fastapi / uvicorn / httpx
 2. `app/db/schema.sql` + `store.py`：建表、写入、两路检索（≥3 字走 FTS5 MATCH，1~2 字走 LIKE 兜底），用户输入一律转短语并转义，带标点也不报错
-3. `app/api/routes.py`：`POST /api/messages`、`GET /api/search`、`GET /api/stats`
+3. `app/api/routes.py`：`POST /api/messages`、`GET /api/messages`、`PATCH`/`DELETE /api/messages/{id}`、`GET /api/search`、`GET /api/export.md`、`GET /api/health`
 4. `web/`：记录页 + 搜索页，手机可访问
 5. `run.ps1`：一键启动
 
@@ -33,7 +39,11 @@
 
 ---
 
-## P2 · 分身对话与拟稿
+## P2 · 分身对话与拟稿　✅ 已完成
+
+**完成情况（2026-11-10 晚）**：`llm.py`（超时/401/402/429 都翻译成人话）、`persona.py` + 三份提示词、`chat.py`（检索不到就不烧 token）、`draft.py`（草稿清洗编号与引号）、`POST /api/chat`、`POST /api/draft`、前端「分身」页签都已落地，24 项测试全过。
+
+**真实联调（21:25，deepseek-flash）**：问「明天要带什么」→「三号柜的图纸 [2]。」并列出 2 条引用；问「三号柜的排期定了吗」→ 老实答「排期定没定，我没记下来」；问记录里没有的「量子纠缠」→ 直接回「没记过」，`used_llm=false`，一次模型都没调。拟稿 1.1 秒出 2 条，都在 40 字内。
 
 **做什么**
 1. `app/services/llm.py`：DeepSeek 调用，超时与错误提示明确
@@ -48,7 +58,7 @@
 - 拟稿页输入一段别人发来的话，出来 2 条像你会说的话
 - 单次问答花费 < 0.01 元
 
-**需要**：一个 DeepSeek API Key
+**需要**：一个 DeepSeek API Key（已配在 `.env`，不进 git）
 
 ---
 

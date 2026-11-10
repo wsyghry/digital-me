@@ -3,7 +3,7 @@
 > 我的个人数据库与数字分身。
 > 把散在微信、QQ 和脑子里的话收拢成一处，能搜、能回忆、能替你拟话。
 
-**状态：骨架阶段（P0）。目录与文档已就位，业务代码尚未开始。**
+**状态：P1 + P2 可用（2026-11-10）。本机能记、能看、能搜、能改、能删、能导出；分身能基于自己的记录回答并标出引用，也能拟回复草稿；手机在同一 WiFi 下可访问；导入、上云还没做。**
 
 ---
 
@@ -61,7 +61,7 @@ digital-me/
 ├── .env.example                 配置模板，复制成 .env 后填写　✅
 ├── .gitignore                   排除 .env、data/、.venv、.archify　✅
 ├── requirements.txt             Python 依赖（fastapi / uvicorn / httpx / python-dotenv）　✅
-├── run.ps1                      一键启动（建虚拟环境、装依赖、起服务）　⏳ P1
+├── run.ps1                      一键启动 / 停止（-Background 后台、-Stop 停止）　✅
 │
 ├── docs/                        文档区，给人看的
 │   ├── modules.md               每个文件干什么、改哪里，先从这份看起　✅
@@ -70,34 +70,35 @@ digital-me/
 │   ├── decisions-digital-me.md  决策记录：每条为什么这么定　✅
 │   ├── data-schema.md           数据表字段、检索方式与实测性能　✅
 │   ├── roadmap.md               P0~P5 阶段计划与验收标准　✅
+│   ├── pending.md               还没做的功能清单、今晚可直接跑的步骤　✅
 │   └── architecture.html        可视化架构图（archify 生成）　✅
 │
 ├── app/                         后端
-│   ├── main.py                  入口：创建应用、挂路由、托管 web/　⏳ P1
-│   ├── config.py                配置：读 .env、定义路径与常量　⏳ P1
+│   ├── main.py                  入口：创建应用、挂路由、托管 web/　✅
+│   ├── config.py                配置：读 .env、定义路径与常量　✅
 │   ├── api/
-│   │   ├── routes.py            所有 HTTP 接口，一个接口一段　⏳ P1
-│   │   └── schemas.py           请求/响应模型（Pydantic）　⏳ P1
+│   │   ├── routes.py            所有 HTTP 接口，一个接口一段　✅
+│   │   └── schemas.py           请求/响应模型（Pydantic）　✅
 │   ├── db/
-│   │   ├── schema.sql           建表与索引，数据结构的唯一出处　⏳ P1
-│   │   └── store.py             增删查改、全文检索　⏳ P1
+│   │   ├── schema.sql           建表与索引，数据结构的唯一出处　✅
+│   │   └── store.py             增删查改、全文检索　✅
 │   ├── services/
-│   │   ├── llm.py               DeepSeek 调用，唯一对外请求处　⏳ P2
-│   │   ├── retrieve.py          检索编排：FTS 命中 + 短词兜底　⏳ P1
-│   │   ├── persona.py           人格提示词组装、语气样本抽取　⏳ P2
-│   │   ├── chat.py              问答编排　⏳ P2
-│   │   ├── draft.py             回复草稿生成　⏳ P2
+│   │   ├── llm.py               DeepSeek 调用，唯一对外请求处　✅
+│   │   ├── retrieve.py          检索编排：FTS 命中 + 短词兜底　✅
+│   │   ├── persona.py           人格提示词组装、语气样本抽取　✅
+│   │   ├── chat.py              问答编排：先检索，没命中不调模型　✅
+│   │   ├── draft.py             回复草稿生成，只出草稿不发　✅
 │   │   └── ingest.py            导入适配（jsonl / 微信 / QQ）　⏳ P3
 │   └── prompts/                 提示词正文，改语气不用改代码
-│       ├── persona.md           人格设定（你是谁、怎么说话、什么不许做）　⏳ P2
-│       ├── ask.md               问答模板　⏳ P2
+│       ├── persona.md           人格设定（你是谁、怎么说话、什么不许做）　✅
+│       ├── ask.md               问答模板　✅
 │       └── draft.md             拟稿模板　⏳ P2
 │
 ├── web/                         前端（无构建步骤，改完刷新即可）
-│   ├── index.html               页面骨架与三个页签　⏳ P1
-│   ├── app.js                   交互逻辑，全部 fetch 调用　⏳ P1
-│   ├── style.css                样式　⏳ P1
-│   └── manifest.webmanifest     让手机能「添加到主屏幕」　⏳ P1
+│   ├── index.html               页面骨架与三个页签　✅
+│   ├── app.js                   交互逻辑，全部 fetch 调用　✅
+│   ├── style.css                样式　✅
+│   └── manifest.webmanifest     让手机能「添加到主屏幕」　✅
 │
 ├── data/                        运行时数据（不进 git，程序首次启动自动创建）
 │   ├── me.db                    全部数据（首次启动自动生成）
@@ -105,12 +106,10 @@ digital-me/
 │
 ├── scripts/                     一次性或命令行工具
 │   ├── import_jsonl.py          把 jsonl 批量灌进库　⏳ P3
-│   └── backup.ps1               备份 me.db 到指定目录　⏳ P4
+│   └── backup.py                备份 me.db（运行中也能安全拷）　✅
 │
 └── tests/                       测试
-    ├── conftest.py              测试用的临时数据库夹具，绝不碰真实数据　⏳ P1
-    ├── test_store.py            存储与检索　⏳ P1
-    └── test_api.py              接口行为　⏳ P1
+    └── test_core.py             去重、两字/三字/标点检索、改删导出　✅
 ```
 
 **✅ = 已存在，⏳ = 待建（后面括号里是落在哪个阶段）。**
@@ -126,11 +125,12 @@ digital-me/
 
 ## 四、快速开始
 
-> 尚未实现，P1 阶段补完。以下为预期命令。
+> 已可用。首次运行前需先建虚拟环境并装依赖（见下）。
 
 ```powershell
 cd D:\agent\digital-me
-.\run.ps1                      # 自动建 .venv、装依赖、启动
+.\run.ps1                      # 前台启动，会打印手机访问地址
+# 或：.\run.ps1 -Background  后台跑；.\run.ps1 -Stop  停止
 # 浏览器打开 http://localhost:8000
 ```
 
@@ -175,7 +175,7 @@ cd D:\agent\digital-me
 | 阶段 | 内容 | 验收标准 |
 |---|---|---|
 | P0 | 骨架与文档 | 目录就位，本文可读 |
-| P1 | 记录 + 搜索 | 手机记一句，能搜到 |
+| P1 | 记录 + 搜索　✅ | 手机记一句，能搜到（已验证） |
 | P2 | 分身对话 + 拟稿 | 回答引用真实记录，语气接近本人 |
 | P3 | 微信/QQ 导入 | 能搜到三年前的旧事 |
 | P4 | 部署到云服务器 | 外网可用，HTTPS 正常 |
@@ -201,5 +201,6 @@ cd D:\agent\digital-me
 | 以后能怎么优化、什么时候做 | [`docs/optimization.md`](docs/optimization.md) |
 | 为什么这么决定 | [`docs/decisions-digital-me.md`](docs/decisions-digital-me.md) |
 | 数据表长什么样 | [`docs/data-schema.md`](docs/data-schema.md) |
-| 后面怎么推进 | [`docs/roadmap.md`](docs/roadmap.md) |
+| 后面怎么推进 | [docs/roadmap.md](docs/roadmap.md) |
+| 还没做什么、今晚先干什么 | [docs/pending.md](docs/pending.md) |
 | 架构长什么样 | [`docs/architecture.html`](docs/architecture.html) |

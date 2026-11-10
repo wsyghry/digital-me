@@ -18,7 +18,7 @@
 
 下面命令里的路径按本机实际情况写的，换机器要改。
 
-**第二节起的命令是按 P1 交付后的样子写的**——现在照抄会提示 `run.ps1` 不存在，这是正常的；P1 会按这份手册实现，交付时逐条对一遍。
+**P1 与 P2 都已实现**，第二节起的命令现在可以照抄；只有标了「P3/P4 还没做」的部分是计划。
 
 ---
 
@@ -68,6 +68,8 @@ cd D:\agent\digital-me
 
 - **停止**：在那个窗口按 `Ctrl + C`
 - **后台长跑**（不想一直开着窗口）：`.\run.ps1 -Background`，之后用 `.\run.ps1 -Stop` 关
+- **改完代码想让它生效**：`.\run.ps1 -Restart`（等价于先 Stop 再 Background，一步到位）
+- **重复启动不会报错**：已经在跑的时候再执行 `.\run.ps1`，它会告诉你「已经在跑了」并打印地址
 
 等价的手动命令（调试时用，改动自动重载）：
 
@@ -83,8 +85,13 @@ cd D:\agent\digital-me
 |---|---|
 | 记一句话 | 「记录」页签，输入框打字，`Ctrl + Enter` 发送 |
 | 看最近的记录 | 打开就是，按时间倒序 |
-| 搜索 | 「搜索」页签，输入关键词回车。三个字以上走全文索引，两个字走兜底，都能搜到 |
-| 按来源/时间筛 | 搜索页的筛选条（P1 后期加） |
+| 搜索 | 「搜索」页签，输入关键词回车。三个字以上走全文索引，两个字走兜底，都能搜到，命中词会高亮 |
+| 改一条 | 每条记录下方的「编辑」，弹窗里改完立刻生效，索引同时重建 |
+| 删一条 | 每条记录下方的「删除」，会先问一句，删掉不可恢复 |
+| 导出全部 | 「记录列表」页的「导出 Markdown」，下载按日期分组的纯文本 |
+| 按日期翻 | 「记录列表」或「搜索」页的小按钮：全部 / 今天 / 昨天 / 近 7 天；右边的下拉框直接选某一天（括号里是那天的条数）。记录会按天分成 `11月10日 · 周二` 这样的小标题 |
+| 把某天发给别人看 | 地址后面加 `?day=2026-11-10`，例如 `http://10.62.85.148:8000/?day=2026-11-10` |
+| 自检 | `.\.venv\Scripts\python.exe -m unittest discover -s tests -v` |
 | 问分身 | 「分身」页签输入问题，回答下面会列出它引用了哪几条记录 |
 | 拟一条回复 | 分身页签的「拟稿」：贴上对方的话 + 你大概想说什么，出 2 条候选 |
 
@@ -106,12 +113,15 @@ Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '127
 
 **3. 打不开先查这两件事**
 
-- 服务是不是绑定了 `0.0.0.0`（不是 `127.0.0.1`）
-- Windows 防火墙有没有拦。首次启动会弹提示，要选「允许专用网络」。万一选了拒绝：
+- 服务是不是绑定了 `0.0.0.0`（不是 `127.0.0.1`）——`run.ps1` 已经是 `0.0.0.0`
+- Windows 防火墙有没有拦。首次启动会弹提示「允许访问」；如果当时点了拒绝，或者网络被认成「公用网络」，用管理员身份开 PowerShell 执行：
 
 ```powershell
-New-NetFirewallRule -DisplayName "分身志 8000" -Direction Inbound -LocalPort 8000 -Protocol TCP -Action Allow -Profile Private
+New-NetFirewallRule -DisplayName "分身志 8000" -Direction Inbound -LocalPort 8000 -Protocol TCP -Action Allow -Profile Private,Public
 ```
+
+> 加规则必须管理员权限，普通窗口会报「拒绝访问」。用完想撤：`Remove-NetFirewallRule -DisplayName "分身志 8000"`。
+> 如果手机开热点、电脑连手机，网络通常被认成「公用」，所以上面同时放行 Private 和 Public。
 
 **4. 加到主屏幕**：Chrome 菜单 →「添加到主屏幕」。之后点图标全屏打开，跟 App 差不多。
 
@@ -123,7 +133,7 @@ New-NetFirewallRule -DisplayName "分身志 8000" -Direction Inbound -LocalPort 
 
 ## 五、分身怎么用才不出错
 
-P2 上线后：
+P2 已接好，填好 Key 就能用：
 
 | 问法 | 效果 |
 |---|---|
@@ -182,8 +192,33 @@ Copy-Item data\me.db "D:\备份\me-$(Get-Date -Format yyyyMMdd).db"
 ```
 
 - **迁移到新电脑/服务器**：拷 `me.db` 过去，改 `.env` 里的 `ME_DB` 指向它，启动即可
-- **别在服务运行时直接拷**：可能拷到写入一半的文件。要么停服务，要么用 `scripts/backup.ps1`（P4，内部用 SQLite 的备份接口，运行中也安全）
+```powershell
+# 不用停服务，内部走 SQLite 的备份接口
+.\.venv\Scripts\python.exe scripts\backup.py
+# 或者指定目录
+.\.venv\Scripts\python.exe scripts\backup.py --to D:\备份\分身志
+```
+
+- **别在服务运行时直接 `Copy-Item`**：可能拷到写入一半的文件。要用上面的 `scripts/backup.py`，它在服务运行中也能安全拷
 - `.env` 不跟着数据库走，要单独另存（里面有 Key）
+
+---
+
+## 七点五、自检（交付前、改完代码后各跑一次）
+
+```powershell
+.\scripts\check.ps1
+```
+
+它只读，不联网、不花钱、不碰 `data/me.db`：检查虚拟环境、跑全部单元测试（现在 28 项，临时库）、探服务健康、确认关键文件在位。末行 `RESULT: PASS` 就算过。
+
+只想单独跑测试：
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
+
+> 注意要用 `.venv` 里的 python，系统 python 没装依赖会报 `No module named 'dotenv'`。
 
 ---
 
@@ -211,6 +246,10 @@ Copy-Item data\me.db "D:\备份\me-$(Get-Date -Format yyyyMMdd).db"
 | 手机打不开，电脑上能开 | 只绑了 127.0.0.1，或防火墙 | 见第四节第 3 条 |
 | 搜不到明明记得的词 | 两字词、或用词跟原文差太多 | 换原文里更可能出现的三个字再试；实在搜不到是向量检索要解决的，见 optimization.md |
 | 搜带括号/引号的词页面报错 | 查询串没转义（已修的坑） | 更新到最新代码；这是 P1 就该测的用例 |
+| 分身回 503「还没配置 DEEPSEEK_API_KEY」 | `.env` 没建或 Key 没填 | `Copy-Item .env.example .env`，把 Key 填到 `DEEPSEEK_API_KEY=` 后面，再 `.\run.ps1 -Stop` + `.\run.ps1 -Background` |
+| 分身回 402「余额不足」 | DeepSeek 账户没钱 | 去 platform.deepseek.com 充 10 元，够问很久 |
+| 分身回 401「API Key 不对」 | Key 复制少了字符、或已撤销 | 重新生成一个，覆盖 `.env` 里那行 |
+| 分身说「我没记过这件事」但其实记过 | 提问用词跟记录差太远，二元组没命中 | 换个说法，或先用搜索页找原文里的词 |
 | 分身回答「接口错误 401」 | API Key 错或没充钱 | 检查 `.env` 的 `DEEPSEEK_API_KEY`，去平台看余额 |
 | 分身回答「接口错误 402」 | 余额不足 | 充值，或先用免费额度 |
 | 分身很慢 | 高峰时段（工作日 9-12、14-18） | 错峰用；空闲时段价格还便宜一半 |

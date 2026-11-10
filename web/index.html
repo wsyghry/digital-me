@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>分身志</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="top">
+  <h1>分身志</h1>
+  <span id="status" class="status">…</span>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button class="tab active" data-tab="write">记录</button>
+  <button class="tab" data-tab="list">记录列表</button>
+  <button class="tab" data-tab="search">搜索</button>
+  <button class="tab" data-tab="me">分身</button>
+</nav>
+
+<main>
+  <section class="panel active" id="panel-write">
+    <textarea id="note" rows="6" placeholder="想到什么就写什么，Ctrl + Enter 保存"></textarea>
+    <div class="row">
+      <button id="save" class="primary">记下</button>
+      <span id="hint" class="hint"></span>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-list">
+    <div class="row">
+      <button id="refresh" class="ghost">刷新</button>
+      <a class="ghost linkbtn" href="/api/export.md" download="分身志导出.md">导出 Markdown</a>
+      <span id="list-count" class="hint"></span>
+    </div>
+    <div class="row chips">
+      <button class="chip active" data-scope="list" data-kind="all">全部</button>
+      <button class="chip" data-scope="list" data-kind="today">今天</button>
+      <button class="chip" data-scope="list" data-kind="yesterday">昨天</button>
+      <button class="chip" data-scope="list" data-kind="7d">近 7 天</button>
+      <select id="day-sel" class="daypick" aria-label="按日期筛选"></select>
+    </div>
+    <ul id="list" class="items"></ul>
+    <button id="more" class="ghost wide" hidden>加载更早</button>
+  </section>
+
+  <section class="panel" id="panel-search">
+    <div class="row">
+      <input id="q" type="search" placeholder="搜关键词，两字也行" autocomplete="off">
+      <button id="do-search" class="primary">搜</button>
+    </div>
+    <div class="row chips">
+      <button class="chip active" data-scope="search" data-kind="all">全部</button>
+      <button class="chip" data-scope="search" data-kind="today">今天</button>
+      <button class="chip" data-scope="search" data-kind="yesterday">昨天</button>
+      <button class="chip" data-scope="search" data-kind="7d">近 7 天</button>
+      <select id="s-day-sel" class="daypick" aria-label="按日期筛选"></select>
+    </div>
+    <p class="hint">三个字以上走全文索引，一两个字走模糊匹配</p>
+    <ul id="results" class="items"></ul>
+  </section>
+
+  <section class="panel" id="panel-me">
+    <p class="hint">只把「问题 + 搜到的几条记录」发给 DeepSeek，整库不出本机。没配 Key 会提示。</p>
+    <div class="row">
+      <input id="question" type="text" placeholder="问它：我明天要带什么？" autocomplete="off">
+      <button id="ask" class="primary">问</button>
+    </div>
+    <div id="answer" class="answer" hidden></div>
+    <ul id="citations" class="items"></ul>
+
+    <details class="draftbox">
+      <summary>拟一条回复（只出草稿，自己审完再发）</summary>
+      <textarea id="theirs" rows="3" placeholder="对方说了什么，原话贴进来"></textarea>
+      <textarea id="intent" rows="2" placeholder="我大概想表达什么，可留空"></textarea>
+      <div class="row">
+        <button id="do-draft" class="primary">拟稿</button>
+        <span id="draft-hint" class="hint"></span>
+      </div>
+      <ul id="drafts" class="items"></ul>
+    </details>
+  </section>
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>
