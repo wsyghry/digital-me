@@ -23,6 +23,8 @@ from .schemas import (
     MessageIn,
     MessageOut,
     MessagePatch,
+    PersonOut,
+    PersonRebuildOut,
 )
 
 router = APIRouter(prefix="/api")
@@ -60,11 +62,13 @@ def list_messages(
     before_id: int | None = None,
     start: str | None = None,
     end: str | None = None,
+    person: str | None = None,
 ) -> list[MessageOut]:
     return [
         MessageOut(**r)
         for r in store.list_messages(
-            limit, before_id, start=_day(start, "start"), end=_day(end, "end")
+            limit, before_id,
+            start=_day(start, "start"), end=_day(end, "end"), person=person,
         )
     ]
 
@@ -102,13 +106,26 @@ def search(
     limit: int = Query(50, ge=1, le=200),
     start: str | None = None,
     end: str | None = None,
+    person: str | None = None,
 ) -> list[MessageOut]:
     return [
         MessageOut(**r)
         for r in retrieve.search(
-            q, limit, start=_day(start, "start"), end=_day(end, "end")
+            q, limit, start=_day(start, "start"), end=_day(end, "end"), person=person
         )
     ]
+
+
+@router.get("/persons", response_model=list[PersonOut])
+def persons(limit: int = Query(300, ge=1, le=2000)) -> list[PersonOut]:
+    """人名 + 往来条数，给「按人看」下拉用。"""
+    return [PersonOut(**p) for p in store.list_persons(limit)]
+
+
+@router.post("/persons/rebuild", response_model=PersonRebuildOut)
+def rebuild_persons() -> PersonRebuildOut:
+    """从现有消息重新归纳人物表（幂等，导入后可跑一次）。"""
+    return PersonRebuildOut(**store.rebuild_persons())
 
 
 @router.get("/days", response_model=list[DayOut])

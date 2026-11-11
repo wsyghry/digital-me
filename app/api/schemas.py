@@ -45,6 +45,16 @@ class DayOut(BaseModel):
     count: int
 
 
+class PersonOut(BaseModel):
+    id: int
+    name: str
+    count: int
+
+
+class PersonRebuildOut(BaseModel):
+    persons: int
+
+
 class HealthOut(BaseModel):
     ok: bool
     messages: int

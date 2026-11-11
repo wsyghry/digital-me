@@ -144,6 +144,32 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(summary[1], {"day": "2026-11-09", "count": 1})
 
 
+    def test_filter_by_person(self):
+        store.insert_message(
+            "A 说的", ts="2026-11-10T09:00:00+08:00", conv="阿A", sender="阿A"
+        )
+        store.insert_message(
+            "B 说的", ts="2026-11-10T10:00:00+08:00", conv="阿B", sender="阿B"
+        )
+        rows = store.list_messages(limit=10, person="阿A")
+        self.assertEqual([r["conv"] for r in rows], ["阿A"])
+        rows = retrieve.search("说的", limit=10, person="阿B")
+        self.assertEqual([r["conv"] for r in rows], ["阿B"])
+
+    def test_rebuild_persons_skips_groups(self):
+        store.insert_message(
+            "群里的话", ts="2026-11-10T09:00:00+08:00", conv="某交流群", sender="老王"
+        )
+        store.insert_message(
+            "私聊的话", ts="2026-11-10T10:00:00+08:00", conv="老王", sender="老王"
+        )
+        store.upsert_conv("某交流群", "wechat", 1)
+        store.rebuild_persons()
+        names = {p["name"] for p in store.list_persons(100)}
+        self.assertIn("老王", names)
+        self.assertNotIn("某交流群", names)
+
+
 class RetrieveTest(unittest.TestCase):
     def test_build_fts_query_escapes_quotes(self):
         self.assertEqual(retrieve.build_fts_query(["三号柜"]), '"三号柜"')

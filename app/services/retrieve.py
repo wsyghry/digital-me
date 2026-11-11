@@ -31,12 +31,14 @@ def search(
     limit: int = 50,
     start: str | None = None,
     end: str | None = None,
+    person: str | None = None,
 ) -> list[dict]:
     long_terms, short_terms = split_terms(query)
     if not long_terms and not short_terms:
         return []
     return store.search_messages(
-        build_fts_query(long_terms), short_terms, limit, start=start, end=end
+        build_fts_query(long_terms), short_terms, limit,
+        start=start, end=end, person=person,
     )
 
 

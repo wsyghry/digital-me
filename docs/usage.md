@@ -13,7 +13,7 @@
 | 记一句话 | ⏳ 不能 | P1 |
 | 搜自己的记录 | ⏳ 不能 | P1 |
 | 分身回答、拟稿 | ⏳ 不能 | P2（需要 API Key） |
-| 导入微信 / QQ 历史 | ⏳ 不能 | P3（有账号风险，单独决策） |
+| 导入微信历史 | ✅ 私聊已导 7357 条 | 第六节；群聊与 QQ 还没做 |
 | 手机随时访问 | ⏳ 不能 | P4 之后才是真正随时（本机阶段电脑要开机） |
 
 下面命令里的路径按本机实际情况写的，换机器要改。
@@ -91,6 +91,7 @@ cd D:\agent\digital-me
 | 导出全部 | 「记录列表」页的「导出 Markdown」，下载按日期分组的纯文本 |
 | 按日期翻 | 「记录列表」或「搜索」页的小按钮：全部 / 今天 / 昨天 / 近 7 天；右边的下拉框直接选某一天（括号里是那天的条数）。记录会按天分成 `11月10日 · 周二` 这样的小标题 |
 | 把某天发给别人看 | 地址后面加 `?day=2026-11-10`，例如 `http://10.62.85.148:8000/?day=2026-11-10` |
+| 按人看 | 「记录列表」或「搜索」页右侧「按人…」下拉，选某人只看与 TA 的往来（括号里是条数）。群聊消息显示成「群 · 昵称」 |
 | 自检 | `.\.venv\Scripts\python.exe -m unittest discover -s tests -v` |
 | 问分身 | 「分身」页签输入问题，回答下面会列出它引用了哪几条记录 |
 | 拟一条回复 | 分身页签的「拟稿」：贴上对方的话 + 你大概想说什么，出 2 条候选 |
@@ -151,7 +152,35 @@ P2 已接好，填好 Key 就能用：
 
 ---
 
-## 六、导入历史记录（P3）
+## 六、导入历史记录
+
+### 6.1 微信（私聊 + 群聊，一条命令）
+
+导入器只读微信本地库，**不发送任何消息**。它借用独立环境的 `wechatauto`，所以用工具环境的 python 跑（不是项目 `.venv`）：
+
+```powershell
+# 先看会导多少，不写库
+& D:\agent\_tools\wechat-export\.venv\Scripts\python.exe scripts\import_wechat.py --dry-run
+
+# 正式导入（默认只导私聊）
+& D:\agent\_tools\wechat-export\.venv\Scripts\python.exe scripts\import_wechat.py
+
+# 只导某个人 / 每个会话限条数 / 也导群聊
+& ...\python.exe scripts\import_wechat.py --chat wxid_xxx
+& ...\python.exe scripts\import_wechat.py --limit-per-chat 500
+& ...\python.exe scripts\import_wechat.py --include-groups --limit-per-chat 300 --min-messages 20
+```
+
+- **重复跑安全**：靠指纹去重，第二次跑会全部计入「重复跳过」。
+- 自动跳过公众号（`gh_`）和系统号；群聊要显式加 `--include-groups`。
+- 群聊按「最近 N 条」取（导入器读的是最新在前的顺序），`--limit-per-chat` 就是每群取多少条；不设上限会到 22 万条。
+- 群消息会自动把发送者 wxid 换成昵称，并去掉正文开头的「发送者:」前缀。
+- 导入后跑一次 `POST /api/persons/rebuild`（或重启服务后在网页选一下「按人」下拉）刷新人物表。
+- 会话名取备注名或昵称，取不到的群显示成「群 · 昵称」，不会出现一串 id。
+- 2026-11-11 首次导入：私聊 232 个会话 7357 条；补导群聊（109 个群，每群 300 条）后共 **17478 条**、人物表 1036 人。
+- 导入前建议先备份：`.\.venv\Scripts\python.exe scripts\backup.py`。
+
+### 6.2 通用 jsonl 格式（还没写对应脚本）
 
 **格式**：一行一条 JSON，UTF-8 编码，字段如下（完整说明见 [data-schema.md](data-schema.md)）。
 
@@ -169,16 +198,6 @@ P2 已接好，填好 Key 就能用：
 | `sender` | 是 | 显示名；自己发的写 `me` |
 | `is_me` | 是 | 1 = 我发的，0 = 别人 |
 | `kind` | 否 | 默认 `text` |
-
-**导入**：
-
-```powershell
-.\.venv\Scripts\python.exe scripts\import_jsonl.py data\raw\wechat-2024.jsonl
-```
-
-**看报告**：脚本最后会打印总行数、新增、跳过重复、丢弃原因、时间跨度、各来源条数。丢弃率高通常是时间格式不对或正文为空。
-
-**重复导入不会产生重复数据**，靠指纹去重，放心重跑。
 
 ---
 

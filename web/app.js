@@ -2,6 +2,9 @@ const $ = (id) => document.getElementById(id);
 
 let cursor = null;
 
+/* 按人筛选：列表与搜索各自独立，空串表示不限 */
+const personFilter = { list: "", search: "" };
+
 /* 日期筛选状态：kind = all | today | yesterday | 7d | day */
 const filters = {
   list: { kind: "all", day: "" },
@@ -38,6 +41,31 @@ function rangeQuery(f) {
   if (r.start) qs += `&start=${r.start}`;
   if (r.end) qs += `&end=${r.end}`;
   return qs;
+}
+
+function personQuery(scope) {
+  const p = personFilter[scope];
+  return p ? `&person=${encodeURIComponent(p)}` : "";
+}
+
+async function loadPersons() {
+  const list = await api("/api/persons?limit=500");
+  for (const id of ["person-sel", "s-person-sel"]) {
+    const sel = $(id);
+    const kept = sel.value;
+    sel.innerHTML = "";
+    const none = document.createElement("option");
+    none.value = "";
+    none.textContent = "按人…";
+    sel.append(none);
+    list.forEach((p) => {
+      const opt = document.createElement("option");
+      opt.value = p.name;
+      opt.textContent = `${p.name}（${p.count}）`;
+      sel.append(opt);
+    });
+    sel.value = kept;
+  }
 }
 
 /* 日期分组小标题：2026-11-10 → 11月10日 · 周一 */
@@ -97,12 +125,33 @@ function fillText(el, text, terms) {
   }
 }
 
+const SOURCE_LABEL = { wechat: "微信", qq: "QQ", note: "随手记" };
+
+function sourceLabel(s) {
+  return SOURCE_LABEL[s] || s || "";
+}
+
+function whoLabel(m) {
+  const raw = m.conv || "";
+  const isGroup = raw.endsWith("@chatroom");
+  const conv = raw && raw !== "自己" && !isGroup ? raw : "";
+  const sender = m.sender || "";
+  const named =
+    sender && sender !== "me" && !sender.startsWith("wxid_") && !sender.endsWith("@chatroom");
+  let tail = "";
+  if (isGroup) tail = named ? `群 · ${sender}` : "群";
+  else if (named && sender !== conv) tail = sender;
+  if (conv && tail) return ` · ${conv} · ${tail}`;
+  if (conv) return ` · ${conv}`;
+  return tail ? ` · ${tail}` : "";
+}
+
 function itemEl(m, terms) {
   const li = document.createElement("li");
 
   const meta = document.createElement("div");
   meta.className = "meta";
-  meta.textContent = `${fmt(m.ts)} · ${m.source}`;
+  meta.textContent = `${fmt(m.ts)} · ${sourceLabel(m.source)}${whoLabel(m)}`;
 
   const text = document.createElement("div");
   text.className = "text";
@@ -183,7 +232,7 @@ async function loadDays() {
 async function loadList(reset = true) {
   if (reset) cursor = null;
   const f = filters.list;
-  let qs = `?limit=30${rangeQuery(f)}`;
+  let qs = `?limit=30${rangeQuery(f)}${personQuery("list")}`;
   if (cursor) qs += `&before_id=${cursor}`;
   const rows = await api("/api/messages" + qs);
   const ul = $("list");
@@ -259,7 +308,7 @@ async function search() {
   if (!q) return;
   const terms = q.split(/\s+/).filter(Boolean);
   const rows = await api(
-    "/api/search?limit=50&q=" + encodeURIComponent(q) + rangeQuery(filters.search),
+    "/api/search?limit=50&q=" + encodeURIComponent(q) + rangeQuery(filters.search) + personQuery("search"),
   );
   ul.innerHTML = "";
   let lastDay = "";
@@ -409,8 +458,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
+  for (const [scope, id] of [
+    ["list", "person-sel"],
+    ["search", "s-person-sel"],
+  ]) {
+    $(id).addEventListener("change", (e) => {
+      personFilter[scope] = e.target.value;
+      if (scope === "list") loadList(true);
+      else if ($("q").value.trim()) search();
+    });
+  }
+
   refreshStatus();
   await loadDays();
+  await loadPersons();
 
   const askQ = new URLSearchParams(location.search).get("ask");
   if (askQ) {
@@ -421,6 +482,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   const q = new URLSearchParams(location.search).get("q");
   const day = new URLSearchParams(location.search).get("day");
+  const person = new URLSearchParams(location.search).get("person");
+  if (person) {
+    personFilter.list = person;
+    personFilter.search = person;
+    $("person-sel").value = person;
+    $("s-person-sel").value = person;
+  }
   if (day) {
     filters.list = { kind: "day", day };
     $("day-sel").value = day;

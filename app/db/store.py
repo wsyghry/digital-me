@@ -5,6 +5,7 @@
 """
 
 import hashlib
+import json
 import sqlite3
 from datetime import datetime
 from typing import Any
@@ -95,9 +96,13 @@ def list_messages(
     before_id: int | None = None,
     start: str | None = None,
     end: str | None = None,
+    person: str | None = None,
 ) -> list[dict[str, Any]]:
     """按 id 倒序取，keyset 分页（不用 OFFSET）；start/end 是 YYYY-MM-DD 的日期过滤。"""
     where, params = _date_clause(start, end)
+    if person:
+        where += " AND (conv = ? OR sender = ?)"
+        params += [person, person]
     conn = _connect()
     try:
         sql = f"SELECT {FIELDS} FROM messages WHERE 1 = 1{where}"
@@ -173,6 +178,7 @@ def search_messages(
     limit: int = 50,
     start: str | None = None,
     end: str | None = None,
+    person: str | None = None,
 ) -> list[dict[str, Any]]:
     """两路检索：够了 3 字的词走 FTS5，短词用 LIKE 兜底或再筛；可按日期范围过滤。"""
     sql = ""
@@ -194,6 +200,10 @@ def search_messages(
     where, date_params = _date_clause(start, end, col="m.ts")
     sql += where
     params.extend(date_params)
+
+    if person:
+        sql += " AND (m.conv = ? OR m.sender = ?)"
+        params += [person, person]
 
     sql += " ORDER BY m.ts DESC, m.id DESC LIMIT ?"
     params.append(limit)
@@ -247,6 +257,103 @@ def days(limit: int = 120) -> list[dict[str, Any]]:
 
 def db_size_bytes() -> int:
     return DB_PATH.stat().st_size if DB_PATH.exists() else 0
+
+
+def upsert_conv(name: str, source: str = "wechat", is_group: int = 0) -> None:
+    """登记会话元信息（导入时调用），用来区分「人」和「群」。"""
+    if not name:
+        return
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT id, is_group FROM convs WHERE source = ? AND name = ?", (source, name)
+        ).fetchone()
+        if row is None:
+            conn.execute(
+                "INSERT INTO convs (source, name, is_group) VALUES (?, ?, ?)",
+                (source, name, is_group),
+            )
+        elif int(row["is_group"]) != int(is_group):
+            conn.execute("UPDATE convs SET is_group = ? WHERE id = ?", (is_group, row["id"]))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def group_names() -> set[str]:
+    conn = _connect()
+    try:
+        rows = conn.execute("SELECT name FROM convs WHERE is_group = 1").fetchall()
+    finally:
+        conn.close()
+    return {r["name"] for r in rows}
+
+
+def rebuild_persons() -> dict[str, int]:
+    """从已有消息里归纳出「人」：私聊的会话名 + 群里发过言的昵称。
+
+    一人一行，名字就是显示名。可重复执行，每次整表重建。
+    """
+    conn = _connect()
+    try:
+        names: dict[str, set[str]] = {}
+        groups = group_names()
+        for r in conn.execute(
+            "SELECT DISTINCT conv FROM messages"
+            " WHERE conv IS NOT NULL AND conv != '' AND conv != '自己'"
+        ).fetchall():
+            n = r["conv"]
+            if n.endswith("@chatroom") or n.startswith("wxid_") or n in groups:
+                continue
+            names.setdefault(n, set()).add(n)
+        for r in conn.execute(
+            "SELECT DISTINCT sender FROM messages"
+            " WHERE is_me = 0 AND sender NOT LIKE 'wxid_%'"
+            " AND sender NOT LIKE '%@chatroom' AND sender != 'me'"
+        ).fetchall():
+            n = r["sender"]
+            if n:
+                names.setdefault(n, set()).add(n)
+
+        conn.execute("DELETE FROM persons")
+        now = now_iso()
+        for name, aliases in names.items():
+            conn.execute(
+                "INSERT INTO persons (name, aliases, created_at) VALUES (?, ?, ?)",
+                (name, json.dumps(sorted(aliases), ensure_ascii=False), now),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+    return {"persons": len(names)}
+
+
+def list_persons(limit: int = 300) -> list[dict[str, Any]]:
+    """人名 + 往来条数（私聊按会话名算，群聊按发言人算），按条数倒序。"""
+    conn = _connect()
+    try:
+        counts: dict[str, int] = {}
+        for r in conn.execute(
+            "SELECT conv AS k, COUNT(*) AS n FROM messages"
+            " WHERE conv IS NOT NULL AND conv != '' GROUP BY conv"
+        ).fetchall():
+            counts[r["k"]] = counts.get(r["k"], 0) + int(r["n"])
+        for r in conn.execute(
+            "SELECT sender AS k, COUNT(*) AS n FROM messages"
+            " WHERE is_me = 0 GROUP BY sender"
+        ).fetchall():
+            counts[r["k"]] = counts.get(r["k"], 0) + int(r["n"])
+        rows = conn.execute("SELECT id, name FROM persons").fetchall()
+    finally:
+        conn.close()
+
+    out = [
+        {"id": r["id"], "name": r["name"], "count": counts.get(r["name"], 0)}
+        for r in rows
+        if counts.get(r["name"], 0) > 0
+    ]
+    out.sort(key=lambda x: (-x["count"], x["name"]))
+    return out[:limit]
 
 
 def sample_my_messages(limit: int = 10, max_chars: int = 60) -> list[str]:

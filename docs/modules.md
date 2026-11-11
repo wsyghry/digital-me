@@ -47,12 +47,15 @@
 
 | 文件 | 作用 |
 |---|---|
+| **`STATUS.md`** | **项目总控：做到哪了、还差什么、有什么风险、变更记录。进度只看这一份** |
 | `decisions-digital-me.md` | 决策记录：定了什么、为什么。改主意要在这里标注被谁取代 |
 | `data-schema.md` | 数据表字段、检索策略、导入格式、实测性能 |
 | `modules.md` | 本文件：每个文件干什么、改哪里 |
 | `usage.md` | 操作手册：怎么装、怎么用、出问题怎么办 |
 | `optimization.md` | 优化清单：哪里能更好、什么代价、什么时候做 |
 | `roadmap.md` | 阶段计划与验收标准 |
+| `pending.md` | 下一步能直接动手的小任务（比 STATUS 更细） |
+| `import-wechat.md` | 微信历史导入方案、实测数据与踩过的坑 |
 | `architecture.html` | 可视化架构图，浏览器直接打开，可亮/暗切换、可导出图片 |
 
 ### `app/` —— 后端
@@ -106,7 +109,8 @@
 |---|---|---|
 | `scripts/backup.py` | 用 SQLite backup API 备份 `me.db`，服务运行中也能安全拷，默认存到 `backups/` | ✅ |
 | `scripts/check.ps1` | 一键自检：venv、28 项单元测试、服务健康、关键文件；只读，不联网不花钱 | ✅ |
-| `scripts/import_jsonl.py` | 命令行批量导入，打印导入报告 | ⏳ P3 |
+| `scripts/import_wechat.py` | 微信历史导入：只读微信本地库 → 清洗 → 映射成本项目字段 → 去重入库；支持 `--dry-run`、`--chat`、`--include-groups`、`--limit-per-chat`、`--min-messages`。群聊会把群成员 wxid 换成昵称、去掉正文开头的「发送者:」前缀，并调 `store.upsert_conv()` 登记「哪些是群」。**必须用工具环境 python 跑**（pywin32 依赖），命令见 usage.md 第六节 | ✅ |
+| `scripts/import_jsonl.py` | 命令行批量导入通用 jsonl，打印导入报告 | ⏳ P3 |
 | `tests/test_core.py` | 关键路径测试：去重、两字/三字/标点检索、改后重建索引、删除、导出。用临时库，不碰真实数据 | ✅ |
 
 跑测试：
@@ -122,11 +126,13 @@
 | 方法 | 路径 | 干什么 |
 |---|---|---|
 | `POST` | `/api/messages` | 记一条，重复内容返回 `duplicated: true` |
-| `GET` | `/api/messages?limit=&before_id=&start=&end=` | 按时间倒序取一页，`before_id` 往前翻，`start`/`end` 按日期筛 |
+| `GET` | `/api/messages?limit=&before_id=&start=&end=&person=` | 按时间倒序取一页，`before_id` 往前翻，`start`/`end` 按日期筛，`person` 按人筛 |
 | `PATCH` | `/api/messages/{id}` | 改正文，索引自动跟着重建；改成和别的记录一样会 409 |
 | `DELETE` | `/api/messages/{id}` | 删一条，不存在回 404 |
-| `GET` | `/api/search?q=&start=&end=` | 两路检索：≥3 字走 FTS，短词走 LIKE；可加日期范围 |
+| `GET` | `/api/search?q=&start=&end=&person=` | 两路检索：≥3 字走 FTS，短词走 LIKE；可加日期范围与按人筛 |
 | `GET` | `/api/days` | 日期索引：哪天有几条，给下拉框用 |
+| `GET` | `/api/persons?limit=` | 人物表：名字 + 往来条数，给「按人看」下拉用（群名已排除） |
+| `POST` | `/api/persons/rebuild` | 从现有消息重新归纳人物表，幂等；导入后可跑一次 |
 | `GET` | `/api/export.md` | 全部记录导成 Markdown（按日期分组） |
 | `POST` | `/api/chat` | 提问：检索命中才调模型，返回答案 + 引用；没配 Key 回 503 |
 | `POST` | `/api/draft` | 拟稿：`theirs` + `intent` → 2~3 条候选（只出草稿） |
@@ -158,6 +164,14 @@
 3. `db/store.py` 的 `_date_clause()` 把日期变成 `substr(ts,1,10)` 的比较（`ts` 是带时区的 ISO 串，前 10 位就是本地日期）
 4. 下拉框的可选日期来自 `GET /api/days` → `store.days()`，按天 `GROUP BY` 数条数
 5. 前端拿到结果后按天插小标题（`11月10日 · 周二`），列表与搜索共用 `dayHeadEl()`
+
+**按人看**
+
+1. 前端启动时 `GET /api/persons` → `store.list_persons()`，填两个下拉（「唐睿（1642）」）
+2. 选中某人后，列表 → `GET /api/messages?person=唐睿`；搜索 → `GET /api/search?q=&person=唐睿`
+3. `db/store.py` 加条件 `AND (conv = ? OR sender = ?)`：私聊按会话名、群聊按发送者昵称
+4. 人物表由 `POST /api/persons/rebuild` → `store.rebuild_persons()` 归纳：取 distinct conv 与群内 sender，跳过 `@chatroom`、`wxid_`、以及 `convs` 表里 `is_group=1` 的群名
+5. 群名未解析时，前端 `whoLabel()` 显示成「群 · 昵称」而不是一串 id
 
 **改一条 / 删一条 / 导出**
 
