@@ -275,3 +275,43 @@ class RetrieveTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class InboxTest(unittest.TestCase):
+    """接话挂件的数据来源：谁最后说话、说了多久。"""
+
+    @classmethod
+    def setUpClass(cls):
+        store.init_db()
+
+    def setUp(self):
+        wipe()
+
+    def tearDown(self):
+        conn = store._connect()
+        try:
+            conn.execute("DELETE FROM convs")
+            conn.commit()
+        finally:
+            conn.close()
+
+    def test_only_unanswered_and_old_enough(self):
+        old = "2026-11-10T09:00:00+08:00"
+        store.insert_message("在吗，明天的会改到几点？", ts=old, conv="唐睿", sender="唐睿", is_me=0)
+        store.insert_message("明天十点", ts=old, conv="老妈", sender="我", is_me=1)
+        store.insert_message("刚发来的一句", ts=store.now_iso(), conv="肖云", sender="肖云", is_me=0)
+
+        convs = [i["conv"] for i in store.pending_replies(minutes=2)]
+        self.assertIn("唐睿", convs, "对方最后说话且已过 2 分钟，应出现")
+        self.assertNotIn("老妈", convs, "我最后说话的不算待回复")
+        self.assertNotIn("肖云", convs, "刚发来的还没到阈值")
+
+    def test_group_off_by_default(self):
+        old = "2026-11-10T09:00:00+08:00"
+        store.upsert_conv("三国杀官方交流群", "wechat", 1)
+        store.insert_message("群里有人说话", ts=old, conv="三国杀官方交流群", sender="C'", is_me=0)
+
+        self.assertEqual(store.pending_replies(minutes=2), [], "群聊默认不进挂件")
+        with_group = store.pending_replies(minutes=2, include_groups=True)
+        self.assertEqual(len(with_group), 1)
+        self.assertEqual(with_group[0]["conv"], "三国杀官方交流群")

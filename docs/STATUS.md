@@ -3,7 +3,7 @@
 > **这是本项目进度的唯一权威入口。** 想知道「做到哪了、还差什么、有什么风险」，只看这一页。
 > 开工第一件事是读这一页的「未完成」和「下一步」；收工最后一件事是回来改这一页。
 >
-> 最后更新：2026-11-11 22:00　·　当前阶段：P3c 收尾完成，P4 只差买机器（口令已就位、已真浏览器验过）
+> 最后更新：2026-11-11 22:45　·　当前阶段：P3c 收尾完成，P4 只差买机器（口令已就位并做了真浏览器验收；接话挂件已可用）
 
 ---
 
@@ -21,7 +21,7 @@
 | 时间跨度 | 2023-09-10 ~ 2026-11-11 | 列表页拉到底 |
 | 本人 / 他人 | 私聊 3049 本人；群聊消息带发送者昵称 | 导入器统计 |
 | 库大小 | 19636 KB | `GET /api/health` 的 `db_bytes` |
-| 单元测试 | **48 项全过** | `scripts/check.ps1` |
+| 单元测试 | **50 项全过** | `scripts/check.ps1` |
 | 访问口令 | 已完成：`ME_PASSWORD` 非空即启用（登录页 + 30 天 cookie） | 首页被跳 `/login`；`curl -sI .../api/messages` 得 401 |
 | 人物合并候选 | 「看看该并的」按钮，`GET /api/persons/suggest` | 列表页点按钮，当前真实数据给出 8 条候选 |
 | 话题段 | 命中后带同会话 ±30 分钟上下文（前 3 条） | 问「唐睿…」看答案与引用 |
@@ -49,6 +49,7 @@
 
 | 日期 | 做完的事 | 证据 |
 |---|---|---|
+| 2026-11-11 夜（第三轮） | **接话挂件 + 真浏览器验收**：`web/widget.html/js/css` 380×640 只读小窗（列出「对方最后说话」的会话、一键拟两句、复制原话、20 秒轮询）；`store.pending_replies()` + `GET /api/inbox`（默认私聊、最近 30 天、滤掉好友验证话术）；`scripts/widget.ps1` 开窗并置顶；顺手修了 `sw.js` 缓存挡住退出登录（导航改网络优先，Playwright 真浏览器复验） | `Ran 50 tests OK`；Playwright 15 条检查全过；截图 `widget.png`、`auth-logout.png` | 
 | 2026-11-11 晚（第二轮） | **上云前置 + 批量归并**：访问口令（`app/auth.py`：登录页、`/api/login`、30 天 cookie、未登录 `/api/*` 401 / 页面 303）；`ME_PASSWORD` 配置与文档；「看看该并的」候选（`store.norm_name` 去括号/符号/大小写 + `suggest_aliases`，保守规则宁漏不误并）；前端候选面板与 `?suggest=1` 深链 | `Ran 48 tests OK`（+7 口令、+2 候选）；真实数据 8 条候选；截图 `suggest-aliases.png` | 见变更记录 |
 | 2026-11-11 晚 | **只靠自己的剩余任务一轮做完**：`ext_id` 修同秒同文误判；导出跟随日期/人筛选（修了中文文件名导致 500 的 bug）；`aliases` 别名表 + 「合并此人」（防成环）；话题段上下文（同会话 ±30 分钟）；记账 `/api/cost` + 分身页显示花费；备份保留份数 + 每日计划任务 + `restore.ps1`；PWA 图标/`sw.js`/离线提示；`docs/deploy.md` 上云六步 + Caddyfile + systemd；语气样本按短/中/长三档 | `Ran 39 tests OK`；`/api/cost` 真实 1 次 ¥0.0019；截图 `me-cost.png`、`list-merge.png` |
 | 2026-11-11 晚 | **群聊导入 10058 条 + 人物表 v1 + 按人筛选**（`person` 参数、`GET /api/persons`、`POST /api/persons/rebuild`、列表/搜索下拉）；群消息正文去掉「发送者:」前缀；`convs` 表登记群，人物表排除群名 | 17478 条、1036 人；`Ran 30 tests OK`；截图 `person-filter.png`、`person-search.png` |
@@ -114,7 +115,8 @@
 | 2026-11-11 晚 | 剩余可自主任务：ext_id / 导出筛选 / 别名 / 话题段 / 记账 / 备份计划 / PWA / 上云文档 / 语气样本 | 见第四节第一行 | 39 项测试、截图 `me-cost.png`、`list-merge.png` | `5b5a5f7` 已提交 |
 | 2026-11-11 晚（第二轮） | 上云前置 + 批量归并：访问口令、合并候选面板 | `app/auth.py`、`store.suggest_aliases`、`tests/test_auth.py` | 48 项测试、截图 `suggest-aliases.png` | `443840e`（gitee 与 github 已对齐） |
 | 2026-11-11 晚（第三轮） | 口令的真浏览器验收（错/对口令、刷新保持、退出回登录） | 临时实例 8010 + 测试库副本，未改主库 | 9 条检查全过；截图 `auth-login.png`、`auth-error.png`、`auth-list.png` | 待提交 |
-| 2026-11-11 晚（第四轮） | 修 Service Worker 缓存挡住退出登录的 bug：导航改网络优先、重定向交回浏览器、`SHELL` 升到 v3 | `web/sw.js` | 真浏览器 6 条检查全过（退出→登录框、地址栏到 `/login`、断网仍能开壳）；截图 `auth-after-logout.png`、`auth-offline.png` | 待提交 |
+| 2026-11-11 晚（第四轮） | 修 Service Worker 缓存挡住退出登录的 bug：导航改网络优先、重定向交回浏览器、`SHELL` 升到 v3 | `web/sw.js` | 真浏览器 6 条检查全过（退出→登录框、地址栏到 `/login`、断网仍能开壳）；截图 `auth-after-logout.png`、`auth-offline.png` | `e382ddd` 已提交 |
+| 2026-11-11 夜（第五轮） | 接话挂件：`/api/inbox` + `widget.html/js/css` + `scripts/widget.ps1`（置顶小窗、只读、一键拟两句） | `store.pending_replies`、`web/widget.*` | 50 项测试、截图 `widget.png` | 待提交 |
 
 ## 八、文档地图（谁负责什么，别维护两份）
 
@@ -138,3 +140,4 @@
 2. **收工前**：改四处——第二节数字快照、第四节加一行完成、第五节删掉已完成或加新发现、第七节加一行变更记录。
 3. **提交后**：回本页第七节把「待提交」改成 commit 短哈希。
 4. **只改一处**：代码清单改 `modules.md`，操作步骤改 `usage.md`，进度与风险只改本页。
+

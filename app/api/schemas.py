@@ -119,3 +119,15 @@ class DraftIn(BaseModel):
 
 class DraftOut(BaseModel):
     candidates: list[str]
+
+
+class InboxItem(BaseModel):
+    conv: str
+    sender: str | None = None
+    ts: str
+    minutes_ago: int
+    text: str
+
+
+class InboxOut(BaseModel):
+    items: list[InboxItem]

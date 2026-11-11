@@ -631,3 +631,66 @@ def sample_my_messages(limit: int = 10, max_chars: int = 60) -> list[str]:
     finally:
         conn.close()
     return [r["text"].replace("\n", " ").strip() for r in rows]
+
+
+_INBOX_NOISE = ("朋友验证", "好友验证", "现在我们可以开始聊天了", "以上是打招呼的内容")
+
+
+def pending_replies(
+    minutes: int = 2,
+    limit: int = 30,
+    active_days: int = 90,
+    include_groups: bool = False,
+    max_chars: int = 120,
+) -> list[dict[str, Any]]:
+    """谁在等我回话：会话最后一条是对方发的，且已经过去 minutes 分钟。
+
+    只读，不发消息。群聊默认不算（太吵），要算就传 include_groups=True。
+    """
+    minutes = max(0, int(minutes))
+    now = datetime.now().astimezone()
+    cutoff_new = (now - timedelta(minutes=minutes)).replace(microsecond=0).isoformat()
+    since = (now - timedelta(days=max(1, int(active_days)))).replace(microsecond=0).isoformat()
+    groups = set() if include_groups else group_names()
+
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "WITH last AS ("
+            "  SELECT conv, MAX(id) AS id FROM messages"
+            "  WHERE conv IS NOT NULL AND conv <> '自己' AND kind = 'text' AND ts >= ?"
+            "  GROUP BY conv"
+            ")"
+            " SELECT m.id, m.conv, m.sender, m.ts, m.text"
+            " FROM messages m JOIN last ON m.id = last.id"
+            " WHERE m.is_me = 0 AND m.ts <= ?"
+            " ORDER BY m.ts DESC LIMIT ?",
+            (since, cutoff_new, limit * 3),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        if r["conv"] in groups:
+            continue
+        try:
+            ago = int((now - datetime.fromisoformat(r["ts"])).total_seconds() // 60)
+        except ValueError:
+            ago = 0
+        text = (r["text"] or "").replace("\r", " ").replace("\n", " ").strip()
+        if any(noise in text for noise in _INBOX_NOISE):
+            continue
+        out.append(
+            {
+                "conv": r["conv"],
+                "sender": r["sender"],
+                "ts": r["ts"],
+                "minutes_ago": ago,
+                "text": text[:max_chars] + ("…" if len(text) > max_chars else ""),
+            }
+        )
+        if len(out) >= limit:
+            break
+    return out
+

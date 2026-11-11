@@ -28,6 +28,8 @@ from .schemas import (
     DraftIn,
     DraftOut,
     HealthOut,
+    InboxItem,
+    InboxOut,
     MessageIn,
     MessageOut,
     MessagePatch,
@@ -215,3 +217,19 @@ def health() -> HealthOut:
         llm=llm.available(),
         auth=config.auth_required(),
     )
+
+
+@router.get("/inbox", response_model=InboxOut)
+def inbox(
+    minutes: int = Query(2, ge=0, le=1440),
+    days: int = Query(30, ge=1, le=3650),
+    limit: int = Query(30, ge=1, le=200),
+    include_groups: bool = False,
+) -> InboxOut:
+    """谁在等我回话（只读）：最后一个说话的是对方，且已经过了几分钟。"""
+    items = store.pending_replies(
+        minutes=minutes, limit=limit, active_days=days, include_groups=include_groups
+    )
+    return InboxOut(items=[InboxItem(**m) for m in items])
+
+

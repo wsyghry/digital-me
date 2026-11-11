@@ -619,4 +619,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     showTab("list");
     await loadSuggest();
   }
+
+  $("open-widget").addEventListener("click", () => {
+    window.open("/widget.html", "me-widget", "width=380,height=640");
+  });
 });

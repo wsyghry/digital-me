@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>接话 · 分身志</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/widget.css">
+</head>
+<body>
+<header class="wtop">
+  <h1>接话</h1>
+  <span id="wcount" class="wcount">…</span>
+  <button id="wrefresh" class="mini" title="刷新">刷新</button>
+</header>
+
+<p class="wnote">只读：显示「最后一句是对方说的」的会话，帮你先想好怎么回。这里不会替你发消息。</p>
+
+<ul id="wlist" class="wlist"></ul>
+<p id="wempty" class="wempty" hidden>暂时没有人等你回话。</p>
+
+<footer class="wfoot">
+  <span id="wstatus"></span>
+  <a href="/" class="wlink">打开完整页面</a>
+</footer>
+
+<script src="/widget.js"></script>
+</body>
+</html>
