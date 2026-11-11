@@ -24,6 +24,35 @@
 
 ---
 
+## 〇点五、一页速查（记不住命令就看这里）
+
+| 我想…… | 做什么 |
+|---|---|
+| 开机用 | `cd D:\agent\digital-me` → `.\run.ps1 -Background` |
+| 关掉 | `.\run.ps1 -Stop` |
+| 重启（改了代码/配置） | `.\run.ps1 -Restart` |
+| 电脑上用 | 打开 http://127.0.0.1:8000 |
+| 手机上用 | 手机连同一 Wi-Fi，开 `http://<电脑IP>:8000`，加主屏幕 |
+| 电脑 IP | `Get-NetIPAddress -AddressFamily IPv4 \| Where-Object {$_.InterfaceAlias -like '*WLAN*'} \| Select-Object IPAddress` |
+| 记一句话 | 首页「记录」→ 输入框 → 记下 |
+| 看记录 | 首页「记录列表」；滚到底自动加载更早的 |
+| 搜 | 「搜索」页，输 1 个字也行（3 字以内走模糊匹配） |
+| 只看某天 | 列表/搜索页上方日期按钮或「按日期…」下拉 |
+| 只看某人 | 「按人…」下拉；群消息显示「群名 · 昵称」 |
+| 同一人多个名字 | 选中有问题的名字 →「合并此人」→ 填正名；批量用「看看该并的」 |
+| 问分身 | 「分身」页输入问题 → 回车；答案带 `[编号]` 引用 |
+| 拟一句回复 | 分身页折叠区：贴对方的话 + 你的意图 →「拟」；只复制，不发送 |
+| 看花了多少钱 | 分身页底部那行「今天 N 次 · ¥x」 |
+| 导出 | 列表页「导出 Markdown」，导出当前的日期/人物筛选 |
+| 备份 | `python scripts\backup.py`（服务开着也能备） |
+| 恢复 | `.\scripts\restore.ps1 -List` → `-File <备份> -Yes` |
+| 每日自动备份 | `.\scripts\install-backup-task.ps1` |
+| 导更多微信记录 | `python scripts\import_wechat.py --include-groups --limit-per-chat 300` |
+| 自己检查一遍 | `.\scripts\check.ps1`，末行 `RESULT: PASS` 就算好 |
+| 加访问口令 | `.env` 里 `ME_PASSWORD=...` → `.\run.ps1 -Restart` |
+
+---
+
 ## 一、一次性准备
 
 **1. 确认 Python**
@@ -326,6 +355,7 @@ cd D:\agent\digital-me
 | 搜不到明明记得的词 | 两字词、或用词跟原文差太多 | 换原文里更可能出现的三个字再试；实在搜不到是向量检索要解决的，见 optimization.md |
 | 搜带括号/引号的词页面报错 | 查询串没转义（已修的坑） | 更新到最新代码；这是 P1 就该测的用例 |
 | 打开网页自动跳到 `/login` | 设了 `ME_PASSWORD`，还没登录或 cookie 过期（30 天） | 输一次口令；忘了就改 `.env` 里的值再重启 |
+| 退出后地址栏还停在 `/`，但屏幕上是登录框 | Service Worker 接了这一跳，地址栏更新慢半拍（2026-11-11 已改成导航走网络优先，通常 1 秒内变成 `/login`） | 正常现象；想彻底干净就关掉浏览器再开 |
 | 分身回 503「还没配置 DEEPSEEK_API_KEY」 | `.env` 没建或 Key 没填 | `Copy-Item .env.example .env`，把 Key 填到 `DEEPSEEK_API_KEY=` 后面，再 `.\run.ps1 -Stop` + `.\run.ps1 -Background` |
 | 分身回 402「余额不足」 | DeepSeek 账户没钱 | 去 platform.deepseek.com 充 10 元，够问很久 |
 | 分身回 401「API Key 不对」 | Key 复制少了字符、或已撤销 | 重新生成一个，覆盖 `.env` 里那行 |

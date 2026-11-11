@@ -114,6 +114,7 @@
 | 2026-11-11 晚 | 剩余可自主任务：ext_id / 导出筛选 / 别名 / 话题段 / 记账 / 备份计划 / PWA / 上云文档 / 语气样本 | 见第四节第一行 | 39 项测试、截图 `me-cost.png`、`list-merge.png` | `5b5a5f7` 已提交 |
 | 2026-11-11 晚（第二轮） | 上云前置 + 批量归并：访问口令、合并候选面板 | `app/auth.py`、`store.suggest_aliases`、`tests/test_auth.py` | 48 项测试、截图 `suggest-aliases.png` | `443840e`（gitee 与 github 已对齐） |
 | 2026-11-11 晚（第三轮） | 口令的真浏览器验收（错/对口令、刷新保持、退出回登录） | 临时实例 8010 + 测试库副本，未改主库 | 9 条检查全过；截图 `auth-login.png`、`auth-error.png`、`auth-list.png` | 待提交 |
+| 2026-11-11 晚（第四轮） | 修 Service Worker 缓存挡住退出登录的 bug：导航改网络优先、重定向交回浏览器、`SHELL` 升到 v3 | `web/sw.js` | 真浏览器 6 条检查全过（退出→登录框、地址栏到 `/login`、断网仍能开壳）；截图 `auth-after-logout.png`、`auth-offline.png` | 待提交 |
 
 ## 八、文档地图（谁负责什么，别维护两份）
 
