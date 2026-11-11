@@ -49,9 +49,11 @@ def ask(question: str, limit: int = MAX_HITS) -> dict:
         return {"answer": NO_HIT, "citations": [], "used_llm": False}
 
     prompt = persona.ask_template().format(context=_context(hits), question=question)
+    style = persona.style_examples(question)
+    system = persona.system_prompt() + (f"\n\n{style}" if style else "")
     answer = llm.chat(
         [
-            {"role": "system", "content": persona.system_prompt()},
+            {"role": "system", "content": system},
             {"role": "user", "content": prompt},
         ],
         temperature=0.3,

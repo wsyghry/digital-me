@@ -131,3 +131,20 @@ class InboxItem(BaseModel):
 
 class InboxOut(BaseModel):
     items: list[InboxItem]
+
+
+class FocusMessage(BaseModel):
+    who: str
+    text: str
+    ts: str
+
+
+class FocusOut(BaseModel):
+    """桌面浮窗要的：当前在聊的那个会话 + 最近几句话 + 拟好的回复。"""
+
+    conv: str
+    sender: str | None = None
+    ts: str
+    minutes_ago: int
+    messages: list[FocusMessage]
+    suggestions: list[str] = []

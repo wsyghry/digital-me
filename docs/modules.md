@@ -113,6 +113,8 @@
 | 文件 | 作用 | 阶段 |
 |---|---|---|
 | `scripts/backup.py` | 用 SQLite backup API 备份 `me.db`，服务运行中也能安全拷；默认存 `backups/`，`--keep N` 只留最近 N 份，`--list` 看现有备份 | ✅ |
+| `scripts/overlay.py` | 桌面浮窗：置顶小卡片贴微信右边，显示最近对话 + 两条候选；点候选复制，点「粘到输入框」复制并给微信窗口发 Ctrl+V（不按发送） | ✅ |
+| `scripts/style_profile.py` | 统计我的说话风格（句长、标点、口头禅、称呼），写 `data/style-profile.md` 供人格层读取 | ✅ |
 | `scripts/restore.ps1` | 从备份恢复：先停服务，旧库留成 `data/me.db.before-restore`，再拷回去并自检；`-List` 列备份，不带 `-Yes` 只干说不做 | ✅ |
 | `scripts/install-backup-task.ps1` | 注册/删除 Windows 计划任务 `digital-me-backup`（每天 21:00 跑 backup.py）；`-Remove` 删任务 | ✅ |
 | `scripts/check.ps1` | 一键自检：venv、39 项单元测试、服务健康、关键文件；只读，不联网不花钱 | ✅ |
@@ -149,6 +151,7 @@
 | `DELETE` | `/api/aliases/{name}` | 撤销一次合并 |
 | `GET` | `/api/export.md?start=&end=&person=` | 按当前筛选导 Markdown（按日期分组）；文件名带筛选条件 |
 | `GET` | `/api/cost` | 调了几次模型、今天/累计花了多少钱（区分高峰价） |
+| `GET` | `/api/focus?hours=&n=&draft=` | 桌面浮窗用：最近在聊的会话 + 最近几句 + 两条候选回复（`draft=false` 省 token） |
 | `POST` | `/api/chat` | 提问：检索命中才调模型，返回答案 + 引用；没配 Key 回 503 |
 | `POST` | `/api/draft` | 拟稿：`theirs` + `intent` → 2~3 条候选（只出草稿） |
 | `GET` | `/api/health` | 条数、库体积、`llm`（Key 是否已配）、`auth`（是否设了口令） |
@@ -237,4 +240,6 @@
 - 接口路径：`/api/` 下，资源用复数（`/api/messages`），动作类用动词（`/api/search`、`/api/chat`）
 - 时间统一 ISO 8601 带时区（`2021-06-01T21:30:00+08:00`），库里以文本存，排序即按字典序，正确
 - 项目路径全 ASCII（`D:\agent\digital-me`），数据路径可以中文，但建议也别放中文目录
+
+
 

@@ -27,6 +27,7 @@ from .schemas import (
     DeleteResult,
     DraftIn,
     DraftOut,
+    FocusOut,
     HealthOut,
     InboxItem,
     InboxOut,
@@ -206,6 +207,22 @@ def draft(body: DraftIn) -> DraftOut:
 def cost_summary() -> CostOut:
     """一共调了几次模型、花了多少钱（按官方价目表估算）。"""
     return CostOut(**cost.summary())
+
+
+@router.get("/focus", response_model=FocusOut)
+def focus(hours: int = Query(72, ge=1, le=8760), n: int = Query(8, ge=2, le=20), draft: bool = True) -> FocusOut:
+    """桌面浮窗用：最近有人在说话的会话 + 最近几句 + 拟好的两条回复。"""
+    data = store.focus(hours=hours, limit=n)
+    if data is None:
+        raise HTTPException(404, "最近没有可以接话的会话")
+    suggestions: list[str] = []
+    theirs = next((m["text"] for m in reversed(data["messages"]) if m["who"] != "我"), "")
+    if draft and theirs:
+        try:
+            suggestions = draft_service.draft(theirs)[:2]
+        except (LLMError, ValueError):
+            suggestions = []
+    return FocusOut(**data, suggestions=suggestions)
 
 
 @router.get("/health", response_model=HealthOut)

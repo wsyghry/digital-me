@@ -31,9 +31,11 @@ def draft(theirs: str, intent: str = "") -> list[str]:
         theirs=theirs,
         intent=intent.strip() or "（没写，看着办）",
     )
+    style = persona.style_examples(theirs, limit=3)
+    system = persona.system_prompt() + (f"\n\n{style}" if style else "")
     text = llm.chat(
         [
-            {"role": "system", "content": persona.system_prompt()},
+            {"role": "system", "content": system},
             {"role": "user", "content": prompt},
         ],
         temperature=0.8,

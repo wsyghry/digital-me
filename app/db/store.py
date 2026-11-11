@@ -694,3 +694,73 @@ def pending_replies(
             break
     return out
 
+
+
+def focus(hours: int = 24, limit: int = 8) -> dict[str, Any] | None:
+    """最近在聊的那个会话（挑最近消息最多、且不超过一天的私聊），带最近几句。"""
+    since = (datetime.now().astimezone() - timedelta(hours=max(1, int(hours)))).replace(microsecond=0).isoformat()
+    conn = _connect()
+    try:
+        groups = group_names()
+        row = conn.execute(
+            "SELECT conv, COUNT(*) AS c, MAX(ts) AS t FROM messages"
+            " WHERE conv IS NOT NULL AND conv <> '自己' AND kind = 'text' AND ts >= ?"
+            " GROUP BY conv ORDER BY c DESC, t DESC LIMIT 20",
+            (since,),
+        ).fetchall()
+        pick = next((r for r in row if r["conv"] not in groups), None) or (row[0] if row else None)
+        if pick is None:
+            return None
+        conv = pick["conv"]
+        rows = conn.execute(
+            "SELECT id, conv, sender, is_me, ts, text FROM messages"
+            " WHERE conv = ? AND kind = 'text' ORDER BY ts DESC, id DESC LIMIT ?",
+            (conv, max(1, int(limit))),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    msgs = []
+    for r in reversed(rows):
+        text = (r["text"] or "").replace("\r", " ").replace("\n", " ").strip()
+        if not text:
+            continue
+        msgs.append({"who": "我" if r["is_me"] else conv, "text": text, "ts": r["ts"]})
+    last = rows[0] if rows else None
+    try:
+        ago = int((datetime.now().astimezone() - datetime.fromisoformat(last["ts"])).total_seconds() // 60) if last else 0
+    except ValueError:
+        ago = 0
+    return {
+        "conv": conv,
+        "sender": last["sender"] if last else None,
+        "ts": last["ts"] if last else "",
+        "minutes_ago": ago,
+        "messages": msgs,
+    }
+
+
+def my_style_examples(terms: list[str], limit: int = 3, max_chars: int = 80) -> list[str]:
+    """我说过的话里，跟这组词最接近的几句——用来给分身当语气参照。"""
+    if not terms:
+        return []
+    marks = ",".join("?" for _ in terms)
+    like = " OR ".join("text LIKE ? ESCAPE '\\'" for _ in terms)
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            f"SELECT text FROM messages WHERE is_me = 1 AND kind = 'text' AND ({like})"
+            " ORDER BY ts DESC LIMIT ?",
+            [*(f"%{_escape_like(t)}%" for t in terms), limit * 4],
+        ).fetchall()
+    finally:
+        conn.close()
+    out: list[str] = []
+    for r in rows:
+        text = (r["text"] or "").replace("\r", " ").replace("\n", " ").strip()
+        if not text or len(text) > 120:
+            continue
+        out.append(text[:max_chars])
+        if len(out) >= limit:
+            break
+    return out
