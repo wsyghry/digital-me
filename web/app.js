@@ -354,6 +354,49 @@ async function ask() {
   } catch (err) {
     box.textContent = "没问成：" + err.message;
   }
+  loadCost();
+}
+
+async function mergePerson() {
+  const name = $("person-sel").value;
+  if (!name) {
+    alert("先在上面下拉里选一个人");
+    return;
+  }
+  const target = window.prompt(`把「${name}」并到谁名下？填另一个名字（比如备注名）：`, "");
+  if (!target || !target.trim() || target.trim() === name) return;
+  try {
+    const res = await api("/api/aliases", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, person: target.trim() }),
+    });
+    await loadPersons();
+    personFilter.list = res.person;
+    personFilter.search = res.person;
+    $("person-sel").value = res.person;
+    $("s-person-sel").value = res.person;
+    loadList(true);
+  } catch (err) {
+    alert("没并成：" + err.message);
+  }
+}
+
+function registerShell() {
+  /* 手机上装到主屏后，没网也能打开外壳；数据永远走网络。 */
+  if (!("serviceWorker" in navigator)) return;
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+}
+
+async function loadCost() {  try {
+    const c = await api("/api/cost");
+    const money = (v) => "¥" + v.toFixed(4);
+    $("cost").textContent =
+      `今天 ${c.today_calls} 次 · ${money(c.today_cost)}｜累计 ${c.calls} 次 · ${money(c.cost)}` +
+      (c.peak_now ? "（高峰价）" : "（空闲价）");
+  } catch {
+    /* 记账挂了不影响用 */
+  }
 }
 
 async function copyText(text) {
@@ -408,10 +451,15 @@ async function doDraft() {
   } catch (err) {
     hint.textContent = "没拟成：" + err.message;
   }
+  loadCost();
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  document.querySelectorAll(".tab").forEach((b) => {
+  registerShell();
+  window.addEventListener("offline", () => {
+    $("status").textContent = "离线：外壳还能看，记录要联网";
+  });
+  window.addEventListener("online", refreshStatus);  document.querySelectorAll(".tab").forEach((b) => {
     b.addEventListener("click", () => showTab(b.dataset.tab));
   });
   $("save").addEventListener("click", save);
@@ -419,7 +467,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) save();
   });
   $("refresh").addEventListener("click", () => loadList(true));
+  $("export").addEventListener("click", () => {
+    /* 导出跟随当前筛选：日期范围 + 按人 */
+    const url = `/api/export.md?_=${Date.now()}${rangeQuery(filters.list)}${personQuery("list")}`;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "分身志导出.md";
+    a.click();
+  });
   $("more").addEventListener("click", () => loadList(false));
+  $("merge-person").addEventListener("click", mergePerson);
   $("do-search").addEventListener("click", () => search());
   $("q").addEventListener("keydown", (e) => {
     if (e.key === "Enter") search();
@@ -472,6 +529,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   refreshStatus();
   await loadDays();
   await loadPersons();
+  loadCost();
 
   const askQ = new URLSearchParams(location.search).get("ask");
   if (askQ) {

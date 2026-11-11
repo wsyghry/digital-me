@@ -95,11 +95,13 @@ def convert(msg: dict, conv: str, self_user: str, grouped: bool = False) -> dict
     if all(ch in "。，！？…~～、,.!? \n\t-" for ch in text):
         return None
     ts = datetime.fromtimestamp(int(msg["create_time"])).astimezone().replace(microsecond=0)
+    ext = f"{msg.get('shard') or ''}:{msg.get('local_id')}"
     return {
         "ts": ts.isoformat(),
         "text": text,
         "sender": sender,
         "is_me": 1 if sender == self_user else 0,
+        "ext_id": ext,
     }
 
 
@@ -185,6 +187,7 @@ def main() -> int:
             got = store.insert_message(
                 r["text"], ts=r["ts"], source="wechat", conv=conv,
                 sender=r["sender"], is_me=r["is_me"], kind="text",
+                ext_id=r.get("ext_id"),
             )
             if got:
                 total_kept += 1

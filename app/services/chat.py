@@ -1,16 +1,43 @@
 """问答编排：先检索我的记录，再让模型只基于这几条回答。"""
 
+from ..db import store
 from . import llm, persona, retrieve
 
 MAX_HITS = 8
+SEGMENT_HITS = 3  # 前几条命中补上「话题段」上下文，后面的只给单条
+SEGMENT_MINUTES = 30
 NO_HIT = "我没记过这件事。要不要先在「记录」里补一句？"
 
 
+def _speaker(m: dict) -> str:
+    if m.get("is_me"):
+        return "我"
+    conv = m.get("conv")
+    if conv and conv != "自己":
+        return conv
+    return m.get("sender") or "对方"
+
+
+def _one_line(text: str, limit: int = 200) -> str:
+    return text.replace("\r", " ").replace("\n", " ").strip()[:limit]
+
+
 def _context(hits: list[dict]) -> str:
-    lines = []
-    for i, m in enumerate(hits, 1):
+    """先给命中那条，再给同会话前后文——很多短句离开上下文就答不准。"""
+    lines: list[str] = []
+    for i, m in enumerate(hits[:SEGMENT_HITS], 1):
         stamp = (m["ts"] or "").replace("T", " ")[:16]
-        lines.append(f"[{i}] {stamp} {m['text']}")
+        lines.append(f"[{i}] {stamp} 命中：{_one_line(m['text'])}")
+        conv = m.get("conv")
+        if conv and conv != "自己":
+            seg = store.topic_segment(m["id"], SEGMENT_MINUTES)
+            if len(seg) > 1:
+                lines.append("  前后文：")
+                for s in seg:
+                    lines.append(f"    {_speaker(s)}：{_one_line(s['text'], 120)}")
+    for i, m in enumerate(hits[SEGMENT_HITS:], SEGMENT_HITS + 1):
+        stamp = (m["ts"] or "").replace("T", " ")[:16]
+        lines.append(f"[{i}] {stamp} {_one_line(m['text'])}")
     return "\n".join(lines)
 
 

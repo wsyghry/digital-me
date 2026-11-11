@@ -1,0 +1,25 @@
+# 放到 /etc/caddy/Caddyfile，把域名换成自己的
+# Caddy 会自动申请并续期 Let's Encrypt 证书，不需要自己弄 certbot
+
+me.wsghaoren.cn {
+	encode zstd gzip
+
+	# 后端只监听 127.0.0.1:8000，外部一律走这里
+	reverse_proxy 127.0.0.1:8000 {
+		# 手机网络慢，问答最多等 70 秒
+		transport http {
+			response_header_timeout 70s
+		}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+	}
+
+	log {
+		output file /var/log/caddy/me.log
+		level WARN
+	}
+}

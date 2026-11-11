@@ -15,8 +15,8 @@ DB_PATH = (_db if _db.is_absolute() else ROOT / _db).resolve()
 WEB_DIR = ROOT / "web"
 SCHEMA_PATH = Path(__file__).resolve().parent / "db" / "schema.sql"
 
-HOST = os.getenv("HOST", "127.0.0.1")
-PORT = int(os.getenv("PORT", "8000"))
+HOST = os.getenv("ME_HOST") or os.getenv("HOST", "127.0.0.1")
+PORT = int(os.getenv("ME_PORT") or os.getenv("PORT", "8000"))
 
 # P2 才会用到，缺了不影响记录和搜索
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")

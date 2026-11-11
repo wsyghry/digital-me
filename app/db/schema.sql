@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS messages (
     is_me      INTEGER NOT NULL DEFAULT 1,
     text       TEXT    NOT NULL,
     kind       TEXT    NOT NULL DEFAULT 'text',
+    ext_id     TEXT,
     fp         TEXT    NOT NULL UNIQUE,
     created_at TEXT    NOT NULL
 );
@@ -20,6 +21,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_ts     ON messages(ts);
 CREATE INDEX IF NOT EXISTS idx_messages_source ON messages(source);
 CREATE INDEX IF NOT EXISTS idx_messages_conv   ON messages(conv);
 CREATE INDEX IF NOT EXISTS idx_messages_is_me  ON messages(is_me);
+-- ext_id 的唯一索引在 store._migrate() 里建：老库要先 ALTER 补列，索引才能建
 
 CREATE TABLE IF NOT EXISTS persons (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,

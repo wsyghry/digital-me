@@ -2,20 +2,26 @@
 
 import sqlite3
 from datetime import date
+from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 
 from ..db import store
 from ..services import chat as chat_service
+from ..services import cost
 from ..services import draft as draft_service
 from ..services import llm, retrieve
 from ..services.llm import LLMError
 from .schemas import (
+    AliasIn,
+    AliasOut,
     ChatIn,
     ChatOut,
+    CostOut,
     CreateResult,
     DayOut,
+    DeleteAliasResult,
     DeleteResult,
     DraftIn,
     DraftOut,
@@ -92,11 +98,25 @@ def delete_message(msg_id: int) -> DeleteResult:
 
 
 @router.get("/export.md", response_class=PlainTextResponse)
-def export_markdown() -> PlainTextResponse:
+def export_markdown(
+    start: str | None = None,
+    end: str | None = None,
+    person: str | None = None,
+) -> PlainTextResponse:
+    label = "digital-me"
+    if start or end:
+        label += f"-{start or ''}_{end or ''}"
+    # 头里只能放 latin-1：文件名用 ASCII，中文名走 filename*（RFC 5987）
+    ascii_name = label + ".md"
+    utf8_name = quote(f"分身志导出{'-' + person if person else ''}{'-' + label if start or end else ''}.md")
     return PlainTextResponse(
-        store.export_markdown(),
+        store.export_markdown(
+            start=_day(start, "start"), end=_day(end, "end"), person=person
+        ),
         media_type="text/markdown; charset=utf-8",
-        headers={"Content-Disposition": 'attachment; filename="digital-me.md"'},
+        headers={
+            "Content-Disposition": f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{utf8_name}"
+        },
     )
 
 
@@ -128,6 +148,26 @@ def rebuild_persons() -> PersonRebuildOut:
     return PersonRebuildOut(**store.rebuild_persons())
 
 
+@router.get("/aliases", response_model=list[AliasOut])
+def aliases() -> list[AliasOut]:
+    """别名表：哪些名字被并到了谁名下。"""
+    return [AliasOut(**a) for a in store.list_aliases()]
+
+
+@router.post("/aliases", response_model=AliasOut)
+def add_alias(body: AliasIn) -> AliasOut:
+    """把一个人的另一个名字并到正名下。"""
+    try:
+        return AliasOut(**store.set_alias(body.name, body.person))
+    except ValueError as err:
+        raise HTTPException(422, str(err))
+
+
+@router.delete("/aliases/{name}", response_model=DeleteAliasResult)
+def remove_alias(name: str) -> DeleteAliasResult:
+    return DeleteAliasResult(ok=True, deleted=store.delete_alias(name))
+
+
 @router.get("/days", response_model=list[DayOut])
 def days(limit: int = Query(120, ge=1, le=365)) -> list[DayOut]:
     """按日期汇总，给界面的日期索引用。"""
@@ -150,6 +190,12 @@ def draft(body: DraftIn) -> DraftOut:
         raise HTTPException(err.status, err.message)
     except ValueError as err:
         raise HTTPException(422, str(err))
+
+
+@router.get("/cost", response_model=CostOut)
+def cost_summary() -> CostOut:
+    """一共调了几次模型、花了多少钱（按官方价目表估算）。"""
+    return CostOut(**cost.summary())
 
 
 @router.get("/health", response_model=HealthOut)

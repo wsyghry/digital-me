@@ -73,28 +73,36 @@
 - 人物表 v1：`POST /api/persons/rebuild` → 1036 人；前端「按人…」下拉 + `person` 参数，列表与搜索都能只看某个人。
 - 坑记录在 [import-wechat.md](import-wechat.md)：`created_at` 无默认值会被 `insert or ignore` 静默吞；trigram 少于 3 字不命中；`export` 的 txt 不适合当导入源。
 
+**已完成（2026-11-11 晚追加）**
+- `ext_id` 列 + partial unique index（`(source, ext_id)`），同一秒同文不再被误判重复；老行自动回填
+- 人物消歧：`aliases` 表 + `resolve_person`（最多 5 跳防环），前端「合并此人」，错了可 `DELETE /api/aliases/<名字>` 撤销
+- 话题段：命中前 3 条自动带同会话 ±30 分钟前后文，问答不再断章取义
+- 群聊导入后正文「发送者:」前缀清掉（8663 条），人物表排除群名（1092 → 1036）
+
 **没做**
 1. QQ：`nt_msg.db` 1041 MB，文件头是 `SQLite header 3`（SQLCipher 变体），PyPI 无可直接用的包，取密钥要读 QQ 进程内存；兜底是官方消息管理器导出 txt
-2. 群名解析：部分群没有备注名，前端显示「群 · 昵称」；需要 `contact` 表或工具的另一条命令
-3. 人物消歧 v2：同一人改备注 / 昵称仍会分裂，需要 aliases 表
-4. 话题段分块：同一会话相近时间的连续消息合成一段，检索才不断章取义
-5. `ext_id` 列：现在靠 `fp` 去重，同一秒同文会被误判成重复
-6. `scripts/import_jsonl.py`：通用格式的批量导入，还没写
+2. 群名解析：部分群没有备注名，前端显示「群 · 昵称」；工具无通讯录命令，收益低先放着
+3. 批量人物归并：现在靠手动「合并此人」，数据里还有几十个该并的，可做候选列表 + 一键确认
+4. 全量群聊：现在是每群最近 300 条；全量 22 万条、库约 250 MB，改参数即可，待拍板
+5. `scripts/import_jsonl.py`：通用格式的批量导入，还没写
 
 ---
 
-## P4 · 上云
+## P4 · 上云　🟡 文档与配置就绪，等买机器
 
-**做什么**
+**已就绪（2026-11-11）**：`docs/deploy.md`（六步命令 + 排查表）、`deploy/Caddyfile`（反代 + HSTS + 自动 HTTPS）、`deploy/digital-me.service`（systemd 常驻）、`app/config.py` 支持 `ME_HOST`/`ME_PORT`、`scripts/backup.py --keep` + `install-backup-task.ps1` + `restore.ps1` 已有。
+
+**还要做**
 1. 买轻量服务器（香港 2C2G，免备案）
-2. 域名解析 A 记录指向服务器，Caddy 自动签 HTTPS
-3. 服务常驻（systemd 或 Windows 服务），开机自启
-4. 每日自动备份 `me.db`
+2. 域名解析 A 记录指向服务器
+3. **加一道口令**：现在接口无登录，上公网前必须先加（最简单：一个访问密码 + cookie，或 Caddy basic_auth）
+4. 把本机 `me.db` 传上去，之后每天备份
 
 **验收**
 - 关掉家里电脑，手机流量下仍能记录和搜索
 - HTTPS 证书有效，手机不报不安全
 - 随机删一条，能从备份恢复
+- 未登录访问直接 401/403
 
 **需要**：域名 DNS 管理权限；若选大陆地域则需 ICP 备案
 

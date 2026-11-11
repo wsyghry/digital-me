@@ -55,11 +55,36 @@ class PersonRebuildOut(BaseModel):
     persons: int
 
 
+class AliasIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    person: str = Field(min_length=1, max_length=200)
+
+
+class AliasOut(BaseModel):
+    name: str
+    person: str
+    created_at: str | None = None
+
+
+class DeleteAliasResult(BaseModel):
+    ok: bool
+    deleted: bool
+
+
 class HealthOut(BaseModel):
     ok: bool
     messages: int
     db_bytes: int
     llm: bool = False
+
+
+class CostOut(BaseModel):
+    calls: int
+    cost: float
+    today_cost: float
+    today_calls: int
+    peak_now: bool
+    model: str
 
 
 class ChatIn(BaseModel):

@@ -6,6 +6,7 @@
 import httpx
 
 from .. import config
+from . import cost
 
 
 class LLMError(Exception):
@@ -57,6 +58,15 @@ def chat(
         raise LLMError(f"模型接口返回 {resp.status_code}：{resp.text[:120]}", 502)
 
     try:
-        return resp.json()["choices"][0]["message"]["content"].strip()
+        data = resp.json()
+        text = data["choices"][0]["message"]["content"].strip()
     except (KeyError, IndexError, ValueError):
         raise LLMError("模型返回的格式看不懂，可能是接口地址填错了", 502)
+
+    usage = data.get("usage") or {}
+    if usage:
+        try:
+            cost.record(usage, config.LLM_MODEL)
+        except Exception:  # 记账失败不能连累回答
+            pass
+    return text

@@ -7,7 +7,7 @@
 import hashlib
 import json
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from ..config import DB_PATH, SCHEMA_PATH
@@ -24,13 +24,34 @@ def _connect() -> sqlite3.Connection:
 
 
 def init_db() -> None:
-    """建库建表。可重复执行。"""
+    """建库建表。可重复执行；老库会自动补新增的列。"""
     with _connect() as conn:
         conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+        _migrate(conn)
 
 
-def _fingerprint(ts: str, source: str, conv: str | None, sender: str, text: str) -> str:
-    raw = "\x1f".join([ts, source, conv or "", sender, text])
+def _migrate(conn: sqlite3.Connection) -> None:
+    """老库补列：schema.sql 里的 CREATE TABLE IF NOT EXISTS 不会改已有表。"""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(messages)").fetchall()}
+    if "ext_id" not in cols:
+        conn.execute("ALTER TABLE messages ADD COLUMN ext_id TEXT")
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_ext"
+        " ON messages(source, ext_id) WHERE ext_id IS NOT NULL"
+    )
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS aliases ("
+        " name TEXT PRIMARY KEY,"
+        " person TEXT NOT NULL,"
+        " created_at TEXT NOT NULL)"
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_aliases_person ON aliases(person)")
+
+
+def _fingerprint(
+    ts: str, source: str, conv: str | None, sender: str, text: str, ext_id: str | None = None
+) -> str:
+    raw = "\x1f".join([ts, source, conv or "", sender, text, ext_id or ""])
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()
 
 
@@ -51,19 +72,44 @@ def insert_message(
     sender: str = "me",
     is_me: int = 1,
     kind: str = "text",
+    ext_id: str | None = None,
 ) -> dict[str, Any] | None:
-    """写入一条。指纹重复返回 None（调用方据此判断是否重复）。"""
+    """写入一条，重复返回 None。
+
+    去重规则：给了 ext_id（导入源的原始 id）就按 (source, ext_id) 判重，
+    这时同一秒同文的第二条不会被误当重复；没给就退回指纹判重。
+    """
     ts = ts or now_iso()
     created_at = now_iso()
-    fp = _fingerprint(ts, source, conv, sender, text)
+    fp = _fingerprint(ts, source, conv, sender, text, ext_id)
+    legacy_fp = _fingerprint(ts, source, conv, sender, text)
     conn = _connect()
     try:
-        if conn.execute("SELECT 1 FROM messages WHERE fp = ?", (fp,)).fetchone():
-            return None
+        if ext_id:
+            dup = conn.execute(
+                "SELECT 1 FROM messages WHERE source = ? AND ext_id = ?", (source, ext_id)
+            ).fetchone()
+            if dup:
+                return None
+            # 老库补 ext_id：上一版导入的行没有 ext_id，指纹按旧算法能对上
+            old = conn.execute(
+                "SELECT id FROM messages WHERE source = ? AND fp = ? AND ext_id IS NULL",
+                (source, legacy_fp),
+            ).fetchone()
+            if old:
+                conn.execute(
+                    "UPDATE messages SET ext_id = ?, fp = ? WHERE id = ?", (ext_id, fp, old["id"])
+                )
+                conn.commit()
+                return None
+        else:
+            dup = conn.execute("SELECT 1 FROM messages WHERE fp = ?", (fp,)).fetchone()
+            if dup:
+                return None
         cur = conn.execute(
-            "INSERT INTO messages (ts, source, conv, sender, is_me, text, kind, fp, created_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (ts, source, conv, sender, is_me, text, kind, fp, created_at),
+            "INSERT INTO messages (ts, source, conv, sender, is_me, text, kind, ext_id, fp, created_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (ts, source, conv, sender, is_me, text, kind, ext_id, fp, created_at),
         )
         conn.commit()
         row = conn.execute(f"SELECT {FIELDS} FROM messages WHERE id = ?", (cur.lastrowid,)).fetchone()
@@ -101,8 +147,9 @@ def list_messages(
     """按 id 倒序取，keyset 分页（不用 OFFSET）；start/end 是 YYYY-MM-DD 的日期过滤。"""
     where, params = _date_clause(start, end)
     if person:
-        where += " AND (conv = ? OR sender = ?)"
-        params += [person, person]
+        clause, p_args = _person_clause(person)
+        where += clause
+        params += p_args
     conn = _connect()
     try:
         sql = f"SELECT {FIELDS} FROM messages WHERE 1 = 1{where}"
@@ -144,17 +191,31 @@ def delete_message(msg_id: int) -> bool:
         conn.close()
 
 
-def export_markdown() -> str:
-    """把全部记录导成按日期分组的 Markdown，正文不改一字。"""
+def export_markdown(
+    start: str | None = None, end: str | None = None, person: str | None = None
+) -> str:
+    """把记录导成按日期分组的 Markdown，正文不改一字；可按日期/人筛选。"""
+    where, params = _date_clause(start, end)
+    if person:
+        clause, p_args = _person_clause(person)
+        where += clause
+        params += p_args
     conn = _connect()
     try:
         rows = conn.execute(
-            "SELECT ts, source, text FROM messages ORDER BY ts ASC, id ASC"
+            f"SELECT ts, source, conv, sender, text FROM messages WHERE 1 = 1{where}"
+            " ORDER BY ts ASC, id ASC",
+            params,
         ).fetchall()
     finally:
         conn.close()
 
-    lines = ["# 分身志导出", ""]
+    title = "分身志导出"
+    if person:
+        title += f" · 与 {person}"
+    if start or end:
+        title += f" · {start or ''}~{end or ''}"
+    lines = [f"# {title}", ""]
     last_day = ""
     for r in rows:
         day = (r["ts"] or "")[:10]
@@ -162,9 +223,14 @@ def export_markdown() -> str:
             lines += [f"## {day}", ""]
             last_day = day
         stamp = (r["ts"] or "")[11:16]
-        lines += [f"**{stamp}** · {r['source']}", "", r["text"], ""]
+        who = ""
+        if person and r["conv"] and r["conv"] != person:
+            who = f" · {r['conv']}"
+        elif person and r["sender"] != person:
+            who = f" · {r['sender']}"
+        lines += [f"**{stamp}** · {r['source']}{who}", "", r["text"], ""]
     if len(rows) == 0:
-        lines += ["（还没有记录）", ""]
+        lines += ["（这个范围里没有记录）", ""]
     return "\n".join(lines)
 
 
@@ -202,8 +268,9 @@ def search_messages(
     params.extend(date_params)
 
     if person:
-        sql += " AND (m.conv = ? OR m.sender = ?)"
-        params += [person, person]
+        clause, p_args = _person_clause(person, prefix="m.")
+        sql += clause
+        params += p_args
 
     sql += " ORDER BY m.ts DESC, m.id DESC LIMIT ?"
     params.append(limit)
@@ -229,6 +296,35 @@ def search_any(terms: list[str], limit: int = 200) -> list[dict[str, Any]]:
     conn = _connect()
     try:
         return [_row(r) for r in conn.execute(sql, params).fetchall()]
+    finally:
+        conn.close()
+
+
+def topic_segment(
+    msg_id: int, minutes: int = 30, max_msgs: int = 12
+) -> list[dict[str, Any]]:
+    """取一条消息所属的「话题段」：同会话、时间相近的一串消息。
+
+    用来给问答补上下文，避免只拿到半句话（比如「那就周三吧」不知道周三指什么）。
+    """
+    conn = _connect()
+    try:
+        row = conn.execute(f"SELECT {FIELDS} FROM messages WHERE id = ?", (msg_id,)).fetchone()
+        if row is None:
+            return []
+        anchor = _row(row)
+        try:
+            t = datetime.fromisoformat(anchor["ts"])
+        except ValueError:
+            return [anchor]
+        lo = (t - timedelta(minutes=minutes)).isoformat(timespec="seconds")
+        hi = (t + timedelta(minutes=minutes)).isoformat(timespec="seconds")
+        rows = conn.execute(
+            f"SELECT {FIELDS} FROM messages WHERE conv IS ? AND ts BETWEEN ? AND ?"
+            " ORDER BY ts ASC, id ASC LIMIT ?",
+            (anchor["conv"], lo, hi, max_msgs),
+        ).fetchall()
+        return [_row(r) for r in rows] or [anchor]
     finally:
         conn.close()
 
@@ -289,10 +385,97 @@ def group_names() -> set[str]:
     return {r["name"] for r in rows}
 
 
+def alias_map() -> dict[str, str]:
+    """别名 → 正名。同一个人有多个昵称/备注时，用这张表归到一个人。"""
+    conn = _connect()
+    try:
+        rows = conn.execute("SELECT name, person FROM aliases").fetchall()
+    finally:
+        conn.close()
+    return {r["name"]: r["person"] for r in rows}
+
+
+def resolve_person(name: str, mapping: dict[str, str] | None = None) -> str:
+    """顺着别名链往上找正名，最多 5 跳，防环。"""
+    mapping = alias_map() if mapping is None else mapping
+    seen = {name}
+    cur = name
+    for _ in range(5):
+        nxt = mapping.get(cur)
+        if not nxt or nxt in seen:
+            break
+        seen.add(nxt)
+        cur = nxt
+    return cur
+
+
+def person_names(person: str) -> list[str]:
+    """一个人的全部名字：正名 + 所有指向它的别名。"""
+    mapping = alias_map()
+    names = {person}
+    for name in mapping:
+        if resolve_person(name, mapping) == person:
+            names.add(name)
+    return sorted(names)
+
+
+def _person_clause(person: str, prefix: str = "") -> tuple[str, list[Any]]:
+    """按人筛消息：把他的别名也算进来。"""
+    names = person_names(person)
+    marks = ",".join("?" * len(names))
+    return (
+        f" AND ({prefix}conv IN ({marks}) OR {prefix}sender IN ({marks}))",
+        names + names,
+    )
+
+
+def set_alias(name: str, person: str) -> dict[str, Any]:
+    """把 name 并到 person 名下。会成环时报错。"""
+    name, person = (name or "").strip(), (person or "").strip()
+    if not name or not person:
+        raise ValueError("两个名字都要填")
+    if name == person:
+        raise ValueError("不用把一个人并到自己")
+    if resolve_person(person) == name:
+        raise ValueError(f"「{person}」已经并到「{name}」名下，反着再并会绕成圈")
+    conn = _connect()
+    try:
+        conn.execute(
+            "INSERT INTO aliases (name, person, created_at) VALUES (?, ?, ?)"
+            " ON CONFLICT(name) DO UPDATE SET person = excluded.person",
+            (name, person, now_iso()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return {"name": name, "person": person}
+
+
+def delete_alias(name: str) -> bool:
+    conn = _connect()
+    try:
+        cur = conn.execute("DELETE FROM aliases WHERE name = ?", (name,))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def list_aliases() -> list[dict[str, Any]]:
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT name, person, created_at FROM aliases ORDER BY person, name"
+        ).fetchall()
+    finally:
+        conn.close()
+    return [dict(r) for r in rows]
+
+
 def rebuild_persons() -> dict[str, int]:
     """从已有消息里归纳出「人」：私聊的会话名 + 群里发过言的昵称。
 
-    一人一行，名字就是显示名。可重复执行，每次整表重建。
+    一人一行，名字就是显示名。可重复执行，每次整表重建；别名表不受影响。
     """
     conn = _connect()
     try:
@@ -347,13 +530,43 @@ def list_persons(limit: int = 300) -> list[dict[str, Any]]:
     finally:
         conn.close()
 
+    mapping = alias_map()
+    merged: dict[str, int] = {}
+    for name, n in counts.items():
+        key = resolve_person(name, mapping)
+        merged[key] = merged.get(key, 0) + n
+    ids = {r["name"]: r["id"] for r in rows}
+    valid = {resolve_person(r["name"], mapping) for r in rows}
     out = [
-        {"id": r["id"], "name": r["name"], "count": counts.get(r["name"], 0)}
-        for r in rows
-        if counts.get(r["name"], 0) > 0
+        {"id": ids.get(name, 0), "name": name, "count": n}
+        for name, n in merged.items()
+        if n > 0 and name in valid
     ]
     out.sort(key=lambda x: (-x["count"], x["name"]))
     return out[:limit]
+
+def sample_by_scene(limit_each: int = 4) -> dict[str, list[str]]:
+    """按长度分档挑我自己的话当语气样本：短回复 / 日常 / 长一点。"""
+    buckets = {
+        "short": ("length(text) <= 12", limit_each + 1),
+        "mid": ("length(text) >= 13 AND length(text) <= 40", limit_each),
+        "long": ("length(text) >= 41 AND length(text) <= 120", max(limit_each - 1, 2)),
+    }
+    out: dict[str, list[str]] = {}
+    conn = _connect()
+    try:
+        for key, (cond, n) in buckets.items():
+            rows = conn.execute(
+                "SELECT text FROM messages WHERE is_me = 1 AND kind = 'text'"
+                f" AND {cond} ORDER BY id DESC LIMIT ?",
+                (n,),
+            ).fetchall()
+            out[key] = [
+                r["text"].replace("\r", " ").replace("\n", " ").strip() for r in rows
+            ]
+    finally:
+        conn.close()
+    return out
 
 
 def sample_my_messages(limit: int = 10, max_chars: int = 60) -> list[str]:

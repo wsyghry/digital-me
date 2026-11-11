@@ -7,18 +7,20 @@
 
 ## 〇、现在能用什么
 
-| 功能 | 现在 | 什么时候有 |
+| 功能 | 现在 | 怎么用 |
 |---|---|---|
-| 看结构、读决策 | ✅ 可以 | 已经写好 |
-| 记一句话 | ⏳ 不能 | P1 |
-| 搜自己的记录 | ⏳ 不能 | P1 |
-| 分身回答、拟稿 | ⏳ 不能 | P2（需要 API Key） |
-| 导入微信历史 | ✅ 私聊已导 7357 条 | 第六节；群聊与 QQ 还没做 |
-| 手机随时访问 | ⏳ 不能 | P4 之后才是真正随时（本机阶段电脑要开机） |
+| 记一句话 / 看列表 / 搜 | ✅ 可以 | 第二、三节 |
+| 改、删、按日期/按人筛、按当前筛选导出 | ✅ 可以 | 第三节 |
+| 分身回答（带引用与前后文）、拟稿 | ✅ 可以（需要 API Key） | 第五节 |
+| 同一人多个名字合并 | ✅ 可以 | 第三节「合并此人」 |
+| 看花了多少钱 | ✅ 可以 | 分身页那行「今天 N 次 · ¥x」 |
+| 备份 / 恢复 | ✅ 可以 | 第七节 |
+| 导入微信历史 | ✅ 私聊 + 109 个群共 17478 条 | 第六节；QQ 还没做 |
+| 手机装到主屏 | ✅ 可以 | 第四节；电脑要开着（P4 上云后才真正随时） |
 
 下面命令里的路径按本机实际情况写的，换机器要改。
 
-**P1 与 P2 都已实现**，第二节起的命令现在可以照抄；只有标了「P3/P4 还没做」的部分是计划。
+**P1、P2、P3a 都已实现**，第二节起的命令现在可以照抄；只有标了「P4 还没做」的部分是计划。
 
 ---
 
@@ -89,10 +91,13 @@ cd D:\agent\digital-me
 | 改一条 | 每条记录下方的「编辑」，弹窗里改完立刻生效，索引同时重建 |
 | 删一条 | 每条记录下方的「删除」，会先问一句，删掉不可恢复 |
 | 导出全部 | 「记录列表」页的「导出 Markdown」，下载按日期分组的纯文本 |
+| 导出当前筛选 | 先选好日期/人，再点「导出 Markdown」，下载的就是筛出来的那一批（文件名会带条件） |
 | 按日期翻 | 「记录列表」或「搜索」页的小按钮：全部 / 今天 / 昨天 / 近 7 天；右边的下拉框直接选某一天（括号里是那天的条数）。记录会按天分成 `11月10日 · 周二` 这样的小标题 |
 | 把某天发给别人看 | 地址后面加 `?day=2026-11-10`，例如 `http://10.62.85.148:8000/?day=2026-11-10` |
 | 按人看 | 「记录列表」或「搜索」页右侧「按人…」下拉，选某人只看与 TA 的往来（括号里是条数）。群聊消息显示成「群 · 昵称」 |
-| 自检 | `.\.venv\Scripts\python.exe -m unittest discover -s tests -v` |
+| 同一人多个名字 | 选中有问题的那个名字 → 点「合并此人」→ 填要并到谁名下（正名）。并错了用 `DELETE /api/aliases/<名字>` 撤销 |
+| 看花了多少钱 | 分身页输入框下面那行：「今天 N 次 · ¥x｜累计 N 次 · ¥y（空闲价/高峰价）」 |
+| 自检 | `.\scripts\check.ps1`，末行 `RESULT: PASS` 就没事 |
 | 问分身 | 「分身」页签输入问题，回答下面会列出它引用了哪几条记录 |
 | 拟一条回复 | 分身页签的「拟稿」：贴上对方的话 + 你大概想说什么，出 2 条候选 |
 
@@ -212,10 +217,30 @@ Copy-Item data\me.db "D:\备份\me-$(Get-Date -Format yyyyMMdd).db"
 
 - **迁移到新电脑/服务器**：拷 `me.db` 过去，改 `.env` 里的 `ME_DB` 指向它，启动即可
 ```powershell
-# 不用停服务，内部走 SQLite 的备份接口
+# 不用停服务，内部走 SQLite 的备份接口；默认只留最近 14 份
 .\.venv\Scripts\python.exe scripts\backup.py
-# 或者指定目录
-.\.venv\Scripts\python.exe scripts\backup.py --to D:\备份\分身志
+# 或者指定目录 / 保留份数
+.\.venv\Scripts\python.exe scripts\backup.py --to D:\备份\分身志 --keep 30
+# 看现有备份
+.\.venv\Scripts\python.exe scripts\backup.py --list
+```
+
+- **让它每天自动备份**（只需一次，不用管理员）
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install-backup-task.ps1
+# 改成别的点、留 30 份、或删掉任务：
+powershell -ExecutionPolicy Bypass -File scripts\install-backup-task.ps1 -Time 23:30 -Keep 30
+powershell -ExecutionPolicy Bypass -File scripts\install-backup-task.ps1 -Remove
+```
+
+- **从备份恢复**
+
+```powershell
+# 先看有哪些
+powershell -ExecutionPolicy Bypass -File scripts\restore.ps1 -List
+# 真恢复（会停服务、旧库留成 data\me.db.before-restore、恢复后自动起服务）
+powershell -ExecutionPolicy Bypass -File scripts\restore.ps1 -File backups\me-20261111-210315.db -Yes
 ```
 
 - **别在服务运行时直接 `Copy-Item`**：可能拷到写入一半的文件。要用上面的 `scripts/backup.py`，它在服务运行中也能安全拷
@@ -229,7 +254,7 @@ Copy-Item data\me.db "D:\备份\me-$(Get-Date -Format yyyyMMdd).db"
 .\scripts\check.ps1
 ```
 
-它只读，不联网、不花钱、不碰 `data/me.db`：检查虚拟环境、跑全部单元测试（现在 28 项，临时库）、探服务健康、确认关键文件在位。末行 `RESULT: PASS` 就算过。
+它只读，不联网、不花钱、不碰 `data/me.db`：检查虚拟环境、跑全部单元测试（现在 39 项，临时库）、探服务健康、确认关键文件在位。末行 `RESULT: PASS` 就算过。
 
 只想单独跑测试：
 
@@ -241,16 +266,16 @@ Copy-Item data\me.db "D:\备份\me-$(Get-Date -Format yyyyMMdd).db"
 
 ---
 
-## 八、部署到云（P4，等本机跑顺了再做）
+## 八、部署到云（P4，文档已写好，等买机器）
 
-1. 买轻量服务器：腾讯云香港 2 核 2G（免备案），35 元/月上下
-2. 系统选 Ubuntu 24.04，装 Python 3.12
-3. 上传代码（不含 `.env`、`data/`）与 `me.db`
-4. 用 systemd 常驻，Caddy 反代 + 自动 HTTPS
-5. 域名 A 记录指向服务器 IP
-6. 手机流量下访问 `https://你的域名`
+完整六步命令见 `docs/deploy.md`，配套文件在 `deploy/`（`Caddyfile`、`digital-me.service`）。梗概：
 
-细节命令 P4 阶段会补一份 `docs/deploy.md`，现在别急着照搬。
+1. 买腾讯云香港轻量 2 核 2G（免备案），35 元/月上下
+2. 轻量防火墙放行 80 / 443
+3. 域名加一条 `A` 记录：`me` → 服务器公网 IP
+4. 服务器上 `git clone` 代码、建 venv、装依赖、写 `.env`
+5. `deploy/digital-me.service` 交给 systemd 常驻，`deploy/Caddyfile` 交给 Caddy 自动签 HTTPS
+6. 本机 `scripts/backup.py` 出一份备份，`scp` 传到服务器 `data/me.db`，重启服务
 
 **备案提醒**：大陆地域的 80/443 必须 ICP 备案才通，1~20 天；香港免备案，延迟略高但对一个人用完全够。
 

@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>分身志</title>
 <link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon.svg">
+<meta name="theme-color" content="#0e1014">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -32,7 +35,7 @@
   <section class="panel" id="panel-list">
     <div class="row">
       <button id="refresh" class="ghost">刷新</button>
-      <a class="ghost linkbtn" href="/api/export.md" download="分身志导出.md">导出 Markdown</a>
+      <button id="export" class="ghost">导出 Markdown</button>
       <span id="list-count" class="hint"></span>
     </div>
     <div class="row chips">
@@ -42,6 +45,7 @@
       <button class="chip" data-scope="list" data-kind="7d">近 7 天</button>
       <select id="day-sel" class="daypick" aria-label="按日期筛选"></select>
       <select id="person-sel" class="daypick" aria-label="按人筛选"></select>
+      <button id="merge-person" class="chip" title="把当前选中的名字并到另一个人名下">合并此人</button>
     </div>
     <ul id="list" class="items"></ul>
     <button id="more" class="ghost wide" hidden>加载更早</button>
@@ -72,6 +76,7 @@
     </div>
     <div id="answer" class="answer" hidden></div>
     <ul id="citations" class="items"></ul>
+    <p id="cost" class="hint"></p>
 
     <details class="draftbox">
       <summary>拟一条回复（只出草稿，自己审完再发）</summary>

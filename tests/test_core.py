@@ -104,7 +104,19 @@ class StoreTest(unittest.TestCase):
         self.assertIn("**09:30**", md)
 
     def test_export_empty(self):
-        self.assertIn("还没有记录", store.export_markdown())
+        self.assertIn("没有记录", store.export_markdown())
+
+    def test_export_filtered_by_person(self):
+        store.insert_message(
+            "给老王的", ts="2026-11-10T09:00:00+08:00", conv="老王", sender="me"
+        )
+        store.insert_message(
+            "给老李的", ts="2026-11-10T10:00:00+08:00", conv="老李", sender="me"
+        )
+        md = store.export_markdown(person="老王")
+        self.assertIn("给老王的", md)
+        self.assertNotIn("给老李的", md)
+        self.assertIn("与 老王", md)
 
     def test_filter_by_day(self):
         store.insert_message("九号的事", ts="2026-11-09T20:00:00+08:00")
@@ -144,6 +156,29 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(summary[1], {"day": "2026-11-09", "count": 1})
 
 
+    def test_ext_id_keeps_same_second_twins(self):
+        a = store.insert_message("收到", ts="2026-11-11T10:00:00+08:00", ext_id="s4:1")
+        b = store.insert_message("收到", ts="2026-11-11T10:00:00+08:00", ext_id="s4:2")
+        self.assertIsNotNone(a)
+        self.assertIsNotNone(b)
+        again = store.insert_message("收到", ts="2026-11-11T10:00:00+08:00", ext_id="s4:1")
+        self.assertIsNone(again)
+        self.assertEqual(store.count_messages(), 2)
+
+    def test_ext_id_backfills_legacy_row(self):
+        store.insert_message("旧行", ts="2026-11-11T11:00:00+08:00")
+        dup = store.insert_message(
+            "旧行", ts="2026-11-11T11:00:00+08:00", ext_id="s5:9"
+        )
+        self.assertIsNone(dup)
+        conn = store._connect()
+        try:
+            row = conn.execute("SELECT ext_id FROM messages WHERE text = '旧行'").fetchone()
+        finally:
+            conn.close()
+        self.assertEqual(row["ext_id"], "s5:9")
+        self.assertEqual(store.count_messages(), 1)
+
     def test_filter_by_person(self):
         store.insert_message(
             "A 说的", ts="2026-11-10T09:00:00+08:00", conv="阿A", sender="阿A"
@@ -168,6 +203,45 @@ class StoreTest(unittest.TestCase):
         names = {p["name"] for p in store.list_persons(100)}
         self.assertIn("老王", names)
         self.assertNotIn("某交流群", names)
+
+
+    def test_alias_merges_person_and_counts(self):
+        store.insert_message("备注名说的", ts="2026-11-10T09:00:00+08:00", conv="老王", sender="老王")
+        store.insert_message("昵称说的", ts="2026-11-10T10:00:00+08:00", conv="隔壁老王", sender="隔壁老王")
+        store.rebuild_persons()
+        store.set_alias("隔壁老王", "老王")
+        try:
+            rows = store.list_messages(limit=10, person="老王")
+            self.assertEqual({r["conv"] for r in rows}, {"老王", "隔壁老王"})
+            counts = {p["name"]: p["count"] for p in store.list_persons(100)}
+            self.assertNotIn("隔壁老王", counts)
+            self.assertEqual(counts["老王"], 2)
+        finally:
+            store.delete_alias("隔壁老王")
+
+    def test_alias_rejects_cycle(self):
+        store.set_alias("甲", "乙")
+        try:
+            with self.assertRaises(ValueError):
+                store.set_alias("乙", "甲")
+            with self.assertRaises(ValueError):
+                store.set_alias("同一个", "同一个")
+        finally:
+            store.delete_alias("甲")
+
+
+    def test_topic_segment_keeps_nearby_messages(self):
+        first = store.insert_message(
+            "周三行吗", ts="2026-11-10T09:00:00+08:00", conv="老王", sender="老王"
+        )
+        store.insert_message(
+            "行，周三", ts="2026-11-10T09:05:00+08:00", conv="老王", sender="me", is_me=1
+        )
+        store.insert_message(
+            "很久以后", ts="2026-11-10T18:00:00+08:00", conv="老王", sender="老王"
+        )
+        seg = store.topic_segment(first["id"], minutes=30)
+        self.assertEqual([m["text"] for m in seg], ["周三行吗", "行，周三"])
 
 
 class RetrieveTest(unittest.TestCase):

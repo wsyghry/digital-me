@@ -70,9 +70,10 @@
 | `db/store.py` | 连接管理、插入（算指纹去重）、改写、删除、检索、导出、统计 | 唯一可以直接写 SQL 的文件 | ✅ |
 | `services/retrieve.py` | 把用户输入变成查询：分词、拼短语、两路检索（FTS / LIKE）、排序截断 | 不直接开数据库连接，向 store 要 | ✅ |
 | `services/llm.py` | 调 DeepSeek：超时、重试、401/402/429 错误翻译成人话 | 唯一发起对外网络请求的文件 | ✅ |
-| `services/persona.py` | 拼人格提示词：读 `prompts/persona.md` + 取最近几条我自己的真实发言当语气样本 | 不改数据库，只读；样本固定不随机，提示词前缀稳定才能吃缓存价 | ✅ |
-| `services/chat.py` | 问答编排：整句退成二元组检索 → 命中才拼上下文 → 调模型 → 附引用 | 没命中直接回「没记过」，一个 token 都不花 | ✅ |
+| `services/persona.py` | 拼人格提示词：读 `prompts/persona.md` + 按「短回复 / 日常 / 说长一点」三档取我自己的真实发言当语气样本 | 不改数据库，只读；样本固定不随机，提示词前缀稳定才能吃缓存价 | ✅ |
+| `services/chat.py` | 问答编排：整句退成二元组检索 → 命中才拼上下文（前 3 条还带同会话 ±30 分钟的前后文）→ 调模型 → 附引用 | 没命中直接回「没记过」，一个 token 都不花 | ✅ |
 | `services/draft.py` | 拟稿：对方说了什么 + 我想表达什么 → 2~3 条候选，会洗掉模型加的编号和引号 | 只生成草稿，绝不自动发送 | ✅ |
+| `services/cost.py` | 每次调模型的 token 落 `data/llm-cost.jsonl`，按官方价目表估算花费（区分高峰/空闲），`summary()` 给接口用 | 记账失败不能连累回答（`llm.chat` 里 try/except 吞掉） | ✅ |
 | `services/ingest.py` | 导入：jsonl 逐行校验（时间、正文必填）、算指纹、批量入库、出报告 | 不改写原文 | ⏳ P3 |
 
 ### `app/prompts/` —— 提示词正文
@@ -93,6 +94,8 @@
 | `app.js` | 所有交互，用原生 fetch 调接口 | ✅ |
 | `style.css` | 样式，暗色为主，对齐个人网站的气质 | ✅ |
 | `manifest.webmanifest` | 让手机浏览器能「添加到主屏幕」，像 App 一样全屏打开 | ✅ |
+| `icon.svg` | 主屏图标（暗底 + 志字） | ✅ |
+| `sw.js` | Service Worker：只缓存外壳（页面/样式/脚本/图标），`/api/` 一律走网络——记录不进缓存 | ✅ |
 
 ### `data/` —— 运行时数据
 
@@ -107,11 +110,15 @@
 
 | 文件 | 作用 | 阶段 |
 |---|---|---|
-| `scripts/backup.py` | 用 SQLite backup API 备份 `me.db`，服务运行中也能安全拷，默认存到 `backups/` | ✅ |
-| `scripts/check.ps1` | 一键自检：venv、28 项单元测试、服务健康、关键文件；只读，不联网不花钱 | ✅ |
+| `scripts/backup.py` | 用 SQLite backup API 备份 `me.db`，服务运行中也能安全拷；默认存 `backups/`，`--keep N` 只留最近 N 份，`--list` 看现有备份 | ✅ |
+| `scripts/restore.ps1` | 从备份恢复：先停服务，旧库留成 `data/me.db.before-restore`，再拷回去并自检；`-List` 列备份，不带 `-Yes` 只干说不做 | ✅ |
+| `scripts/install-backup-task.ps1` | 注册/删除 Windows 计划任务 `digital-me-backup`（每天 21:00 跑 backup.py）；`-Remove` 删任务 | ✅ |
+| `scripts/check.ps1` | 一键自检：venv、39 项单元测试、服务健康、关键文件；只读，不联网不花钱 | ✅ |
 | `scripts/import_wechat.py` | 微信历史导入：只读微信本地库 → 清洗 → 映射成本项目字段 → 去重入库；支持 `--dry-run`、`--chat`、`--include-groups`、`--limit-per-chat`、`--min-messages`。群聊会把群成员 wxid 换成昵称、去掉正文开头的「发送者:」前缀，并调 `store.upsert_conv()` 登记「哪些是群」。**必须用工具环境 python 跑**（pywin32 依赖），命令见 usage.md 第六节 | ✅ |
 | `scripts/import_jsonl.py` | 命令行批量导入通用 jsonl，打印导入报告 | ⏳ P3 |
-| `tests/test_core.py` | 关键路径测试：去重、两字/三字/标点检索、改后重建索引、删除、导出。用临时库，不碰真实数据 | ✅ |
+| `tests/test_core.py` | 关键路径测试：去重、两字/三字/标点检索、改后重建索引、删除、导出、日期与人过滤、别名合并、话题段。用临时库，不碰真实数据 | ✅ |
+| `tests/test_p2.py` | 问答与拟稿：无命中不调模型、提示词不带无关记录、草稿清洗、错误翻译 | ✅ |
+| `tests/test_cost.py` | 记账：高峰/空闲判定、单价换算、写日志与汇总 | ✅ |
 
 跑测试：
 
@@ -131,9 +138,13 @@
 | `DELETE` | `/api/messages/{id}` | 删一条，不存在回 404 |
 | `GET` | `/api/search?q=&start=&end=&person=` | 两路检索：≥3 字走 FTS，短词走 LIKE；可加日期范围与按人筛 |
 | `GET` | `/api/days` | 日期索引：哪天有几条，给下拉框用 |
-| `GET` | `/api/persons?limit=` | 人物表：名字 + 往来条数，给「按人看」下拉用（群名已排除） |
+| `GET` | `/api/persons?limit=` | 人物表：名字 + 往来条数，给「按人看」下拉用（群名已排除，别名已合并） |
 | `POST` | `/api/persons/rebuild` | 从现有消息重新归纳人物表，幂等；导入后可跑一次 |
-| `GET` | `/api/export.md` | 全部记录导成 Markdown（按日期分组） |
+| `GET` | `/api/aliases` | 别名表：哪些名字并到了谁名下 |
+| `POST` | `/api/aliases` | 把 `{name}` 并到 `{person}` 名下；会成环时 422 |
+| `DELETE` | `/api/aliases/{name}` | 撤销一次合并 |
+| `GET` | `/api/export.md?start=&end=&person=` | 按当前筛选导 Markdown（按日期分组）；文件名带筛选条件 |
+| `GET` | `/api/cost` | 调了几次模型、今天/累计花了多少钱（区分高峰价） |
 | `POST` | `/api/chat` | 提问：检索命中才调模型，返回答案 + 引用；没配 Key 回 503 |
 | `POST` | `/api/draft` | 拟稿：`theirs` + `intent` → 2~3 条候选（只出草稿） |
 | `GET` | `/api/health` | 条数、库体积、`llm`（Key 是否已配） |

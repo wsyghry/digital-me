@@ -1,0 +1,21 @@
+[Unit]
+Description=digital-me (分身志)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/srv/digital-me
+# 只监听本机，外面由 Caddy 挡着
+Environment=ME_HOST=127.0.0.1
+Environment=ME_PORT=8000
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/srv/digital-me/.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=3
+# 稳妥一点：日志进 journald，不自己写文件
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

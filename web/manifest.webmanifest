@@ -1,9 +1,19 @@
 {
   "name": "分身志",
   "short_name": "分身志",
+  "description": "我自己的记录、搜索与分身：只把问题发给模型，整库留在本机。",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0e1014",
   "theme_color": "#0e1014",
-  "lang": "zh-CN"
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }
