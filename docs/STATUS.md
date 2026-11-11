@@ -112,7 +112,7 @@
 | 2026-11-11 | 项目总控文件 | 本页 + 规则写进 AGENTS.md | 未提交 | **待提交** |
 | 2026-11-11 晚 | 三小时任务：QQ 摸底 + 群聊导入 + 人物表 | `import_wechat.py` 群聊模式、`person` 过滤、`/api/persons`、前端下拉与「群 · 昵称」 | 17478 条、1036 人、30 项测试 | `d7bf843` 已提交 |
 | 2026-11-11 晚 | 剩余可自主任务：ext_id / 导出筛选 / 别名 / 话题段 / 记账 / 备份计划 / PWA / 上云文档 / 语气样本 | 见第四节第一行 | 39 项测试、截图 `me-cost.png`、`list-merge.png` | `5b5a5f7` 已提交 |
-| 2026-11-11 晚（第二轮） | 上云前置 + 批量归并：访问口令、合并候选面板 | `app/auth.py`、`store.suggest_aliases`、`tests/test_auth.py` | 48 项测试、截图 `suggest-aliases.png` | **待提交** |
+| 2026-11-11 晚（第二轮） | 上云前置 + 批量归并：访问口令、合并候选面板 | `app/auth.py`、`store.suggest_aliases`、`tests/test_auth.py` | 48 项测试、截图 `suggest-aliases.png` | `5aec560`（gitee 已推；github 当晚网络不通，待补推） |
 
 ## 八、文档地图（谁负责什么，别维护两份）
 
