@@ -211,6 +211,35 @@ mark {
 
 .daypick:focus { outline: none; border-color: var(--accent); }
 
+/* 疑似同一人的候选列表 */
+.suggest {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.suggest-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.suggest-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* 按日期分组的小标题 */
 .items .dayhead {
   border-bottom: 1px solid var(--line);

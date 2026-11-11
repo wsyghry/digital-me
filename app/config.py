@@ -23,3 +23,10 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 LLM_BASE = os.getenv("LLM_BASE", "https://api.deepseek.com")
 LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-flash")
 PERSONA_NAME = os.getenv("PERSONA_NAME", "我")
+
+# 访问口令：本机留空即可；上公网必须设，否则谁都能读写整库
+PASSWORD = os.getenv("ME_PASSWORD", "")
+
+
+def auth_required() -> bool:
+    return bool(PASSWORD)

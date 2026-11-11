@@ -66,6 +66,14 @@ class AliasOut(BaseModel):
     created_at: str | None = None
 
 
+class AliasSuggestOut(BaseModel):
+    name: str
+    person: str
+    count: int
+    person_count: int
+    reason: str
+
+
 class DeleteAliasResult(BaseModel):
     ok: bool
     deleted: bool
@@ -76,6 +84,7 @@ class HealthOut(BaseModel):
     messages: int
     db_bytes: int
     llm: bool = False
+    auth: bool = False
 
 
 class CostOut(BaseModel):

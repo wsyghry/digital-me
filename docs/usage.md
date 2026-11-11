@@ -96,6 +96,7 @@ cd D:\agent\digital-me
 | 把某天发给别人看 | 地址后面加 `?day=2026-11-10`，例如 `http://10.62.85.148:8000/?day=2026-11-10` |
 | 按人看 | 「记录列表」或「搜索」页右侧「按人…」下拉，选某人只看与 TA 的往来（括号里是条数）。群聊消息显示成「群 · 昵称」 |
 | 同一人多个名字 | 选中有问题的那个名字 → 点「合并此人」→ 填要并到谁名下（正名）。并错了用 `DELETE /api/aliases/<名字>` 撤销 |
+| 一次看一批该并的 | 点「看看该并的」，列出「去掉括号/符号/大小写后同名」的候选，逐条点「合并」。只列有把握的，没列出来的用「合并此人」手动选 |
 | 看花了多少钱 | 分身页输入框下面那行：「今天 N 次 · ¥x｜累计 N 次 · ¥y（空闲价/高峰价）」 |
 | 自检 | `.\scripts\check.ps1`，末行 `RESULT: PASS` 就没事 |
 | 问分身 | 「分身」页签输入问题，回答下面会列出它引用了哪几条记录 |
@@ -254,7 +255,7 @@ powershell -ExecutionPolicy Bypass -File scripts\restore.ps1 -File backups\me-20
 .\scripts\check.ps1
 ```
 
-它只读，不联网、不花钱、不碰 `data/me.db`：检查虚拟环境、跑全部单元测试（现在 39 项，临时库）、探服务健康、确认关键文件在位。末行 `RESULT: PASS` 就算过。
+它只读，不联网、不花钱、不碰 `data/me.db`：检查虚拟环境、跑全部单元测试（现在 48 项，临时库）、探服务健康、确认关键文件在位。末行 `RESULT: PASS` 就算过。
 
 只想单独跑测试：
 
@@ -263,6 +264,24 @@ powershell -ExecutionPolicy Bypass -File scripts\restore.ps1 -File backups\me-20
 ```
 
 > 注意要用 `.venv` 里的 python，系统 python 没装依赖会报 `No module named 'dotenv'`。
+
+---
+
+## 七点六、访问口令（上公网前必做，本机可跳过）
+
+本机自用不用设。一旦要让外网访问（P4），**必须**设，否则任何人拿到地址都能读写整库。
+
+1. 在 `D:\agent\digital-me\.env` 末尾加一行：
+
+```
+ME_PASSWORD=你自己想的口令
+```
+
+2. `.\run.ps1 -Restart`，再用手机/浏览器打开首页，会先看到登录框，输一次口令，管 30 天
+3. 想换口令：改这一行再重启，所有设备需要重新登录
+4. 想临时关掉口令：把 `ME_PASSWORD=` 留空再重启（只建议在本机时这么干）
+
+> 口令是明文比对 + 加盐 hash 存 cookie，够一个人用；别用生日、别跟别的站同一个。
 
 ---
 
@@ -290,6 +309,7 @@ powershell -ExecutionPolicy Bypass -File scripts\restore.ps1 -File backups\me-20
 | 手机打不开，电脑上能开 | 只绑了 127.0.0.1，或防火墙 | 见第四节第 3 条 |
 | 搜不到明明记得的词 | 两字词、或用词跟原文差太多 | 换原文里更可能出现的三个字再试；实在搜不到是向量检索要解决的，见 optimization.md |
 | 搜带括号/引号的词页面报错 | 查询串没转义（已修的坑） | 更新到最新代码；这是 P1 就该测的用例 |
+| 打开网页自动跳到 `/login` | 设了 `ME_PASSWORD`，还没登录或 cookie 过期（30 天） | 输一次口令；忘了就改 `.env` 里的值再重启 |
 | 分身回 503「还没配置 DEEPSEEK_API_KEY」 | `.env` 没建或 Key 没填 | `Copy-Item .env.example .env`，把 Key 填到 `DEEPSEEK_API_KEY=` 后面，再 `.\run.ps1 -Stop` + `.\run.ps1 -Background` |
 | 分身回 402「余额不足」 | DeepSeek 账户没钱 | 去 platform.deepseek.com 充 10 元，够问很久 |
 | 分身回 401「API Key 不对」 | Key 复制少了字符、或已撤销 | 重新生成一个，覆盖 `.env` 里那行 |

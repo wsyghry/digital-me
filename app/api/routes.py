@@ -7,6 +7,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 
+from .. import config
 from ..db import store
 from ..services import chat as chat_service
 from ..services import cost
@@ -16,6 +17,7 @@ from ..services.llm import LLMError
 from .schemas import (
     AliasIn,
     AliasOut,
+    AliasSuggestOut,
     ChatIn,
     ChatOut,
     CostOut,
@@ -154,6 +156,12 @@ def aliases() -> list[AliasOut]:
     return [AliasOut(**a) for a in store.list_aliases()]
 
 
+@router.get("/persons/suggest", response_model=list[AliasSuggestOut])
+def persons_suggest(limit: int = Query(50, ge=1, le=300)) -> list[AliasSuggestOut]:
+    """疑似同一个人的候选，交给前端一键合并。只做保守规则，宁漏不误并。"""
+    return [AliasSuggestOut(**s) for s in store.suggest_aliases(limit)]
+
+
 @router.post("/aliases", response_model=AliasOut)
 def add_alias(body: AliasIn) -> AliasOut:
     """把一个人的另一个名字并到正名下。"""
@@ -205,4 +213,5 @@ def health() -> HealthOut:
         messages=store.count_messages(),
         db_bytes=store.db_size_bytes(),
         llm=llm.available(),
+        auth=config.auth_required(),
     )

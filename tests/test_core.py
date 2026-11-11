@@ -219,6 +219,21 @@ class StoreTest(unittest.TestCase):
         finally:
             store.delete_alias("隔壁老王")
 
+    def test_suggest_aliases_finds_bracket_variants(self):
+        store.insert_message("一", ts="2026-11-10T09:00:00+08:00", conv="陈明玥", sender="陈明玥")
+        store.insert_message("二", ts="2026-11-10T10:00:00+08:00", conv="陈明玥（工作号）", sender="陈明玥（工作号）")
+        store.insert_message("三", ts="2026-11-10T11:00:00+08:00", conv="完全不同的人", sender="完全不同的人")
+        store.rebuild_persons()
+        rows = store.suggest_aliases(50)
+        pairs = {(r["name"], r["person"]) for r in rows}
+        self.assertIn(("陈明玥（工作号）", "陈明玥"), pairs)
+        self.assertNotIn("完全不同的人", {r["name"] for r in rows} | {r["person"] for r in rows})
+
+    def test_norm_name_ignores_symbols_and_case(self):
+        self.assertEqual(store.norm_name("Kevin（工作）"), "kevin")
+        self.assertEqual(store.norm_name("k e v i n"), "kevin")
+        self.assertEqual(store.norm_name("小 明 🐟"), "小明")
+
     def test_alias_rejects_cycle(self):
         store.set_alias("甲", "乙")
         try:

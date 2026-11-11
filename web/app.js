@@ -178,6 +178,10 @@ function actionBtn(label, onClick) {
 
 async function api(path, options) {
   const res = await fetch(path, options);
+  if (res.status === 401 && !location.pathname.startsWith("/login")) {
+    location.replace("/login");
+    throw new Error("401 需要口令");
+  }
   if (!res.ok) {
     const detail = await res.text();
     throw new Error(`${res.status} ${detail.slice(0, 120)}`);
@@ -382,6 +386,53 @@ async function mergePerson() {
   }
 }
 
+async function loadSuggest() {
+  const panel = $("suggest-panel");
+  if (!panel.hidden) {
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+  panel.textContent = "正在找…";
+  try {
+    const rows = await api("/api/persons/suggest?limit=50");
+    if (!rows.length) {
+      panel.textContent = "没找到能自动判断的（同一个人的不同叫法差异太大，得用「合并此人」手动选）";
+      return;
+    }
+    panel.textContent = "";
+    rows.forEach((s) => {
+      const line = document.createElement("div");
+      line.className = "suggest-row";
+      const text = document.createElement("span");
+      text.textContent = `${s.name}（${s.count}）→ ${s.person}（${s.person_count}）`;
+      const go = document.createElement("button");
+      go.className = "mini";
+      go.textContent = "合并";
+      go.addEventListener("click", () => mergeCandidate(s, line));
+      line.append(text, go);
+      panel.append(line);
+    });
+  } catch (err) {
+    panel.textContent = "没查成：" + err.message;
+  }
+}
+
+async function mergeCandidate(s, line) {
+  try {
+    await api("/api/aliases", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: s.name, person: s.person }),
+    });
+    line.remove();
+    await loadPersons();
+    loadList(true);
+  } catch (err) {
+    alert("没并成：" + err.message);
+  }
+}
+
 function registerShell() {
   /* 手机上装到主屏后，没网也能打开外壳；数据永远走网络。 */
   if (!("serviceWorker" in navigator)) return;
@@ -477,6 +528,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   $("more").addEventListener("click", () => loadList(false));
   $("merge-person").addEventListener("click", mergePerson);
+  $("suggest-aliases").addEventListener("click", loadSuggest);
   $("do-search").addEventListener("click", () => search());
   $("q").addEventListener("keydown", (e) => {
     if (e.key === "Enter") search();
@@ -561,5 +613,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     showTab("me");
   } else {
     showTab("write");
+  }
+
+  if (new URLSearchParams(location.search).get("suggest")) {
+    showTab("list");
+    await loadSuggest();
   }
 });

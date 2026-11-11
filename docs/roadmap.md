@@ -90,19 +90,18 @@
 
 ## P4 · 上云　🟡 文档与配置就绪，等买机器
 
-**已就绪（2026-11-11）**：`docs/deploy.md`（六步命令 + 排查表）、`deploy/Caddyfile`（反代 + HSTS + 自动 HTTPS）、`deploy/digital-me.service`（systemd 常驻）、`app/config.py` 支持 `ME_HOST`/`ME_PORT`、`scripts/backup.py --keep` + `install-backup-task.ps1` + `restore.ps1` 已有。
+**已就绪（2026-11-11）**：`docs/deploy.md`（六步命令 + 验收五条 + 排查表）、`deploy/Caddyfile`（反代 + HSTS + 自动 HTTPS）、`deploy/digital-me.service`（systemd 常驻）、`app/config.py` 支持 `ME_HOST`/`ME_PORT`、**访问口令已完成**（`ME_PASSWORD` 非空即启用：登录页 + 30 天 cookie，未登录 `/api/*` 回 401、页面 303 跳登录，`tests/test_auth.py` 7 项）、`scripts/backup.py --keep` + `install-backup-task.ps1` + `restore.ps1`。
 
 **还要做**
 1. 买轻量服务器（香港 2C2G，免备案）
 2. 域名解析 A 记录指向服务器
-3. **加一道口令**：现在接口无登录，上公网前必须先加（最简单：一个访问密码 + cookie，或 Caddy basic_auth）
-4. 把本机 `me.db` 传上去，之后每天备份
+3. 把本机 `me.db` 传上去，之后每天备份
 
 **验收**
 - 关掉家里电脑，手机流量下仍能记录和搜索
 - HTTPS 证书有效，手机不报不安全
+- 未登录访问直接 401/403（页面跳登录）
 - 随机删一条，能从备份恢复
-- 未登录访问直接 401/403
 
 **需要**：域名 DNS 管理权限；若选大陆地域则需 ICP 备案
 

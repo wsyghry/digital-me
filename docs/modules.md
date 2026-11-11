@@ -62,7 +62,8 @@
 
 | 文件 | 作用 | 关键约束 | 阶段 |
 |---|---|---|---|
-| `main.py` | 创建 FastAPI 实例、注册路由、托管 `web/` 静态文件、启动时建库 | 只做组装，不写业务 | ✅ |
+| `main.py` | 创建 FastAPI 实例、注册路由、托管 `web/` 静态文件、启动时建库、挂访问口令中间件 | 只做组装，不写业务 | ✅ |
+| `auth.py` | 访问口令：登录页、`/api/login`、cookie 校验 | 只在 `ME_PASSWORD` 非空时生效，本机默认不拦 | ✅ |
 | `config.py` | 读 `.env`、算绝对路径、定义常量 | 全项目唯一读环境变量的地方 | ✅ |
 | `api/routes.py` | 所有 HTTP 接口，一个接口一个函数（清单见下） | 只做：取参数、调 service、返回结果 | ✅ |
 | `api/schemas.py` | 请求/响应模型（Pydantic），顺带做参数校验与文档 | 不放业务规则 | ✅ |
@@ -119,6 +120,7 @@
 | `tests/test_core.py` | 关键路径测试：去重、两字/三字/标点检索、改后重建索引、删除、导出、日期与人过滤、别名合并、话题段。用临时库，不碰真实数据 | ✅ |
 | `tests/test_p2.py` | 问答与拟稿：无命中不调模型、提示词不带无关记录、草稿清洗、错误翻译 | ✅ |
 | `tests/test_cost.py` | 记账：高峰/空闲判定、单价换算、写日志与汇总 | ✅ |
+| `tests/test_auth.py` | 口令：没设不拦、设了拦接口、登录页与健康检查放行、改口令后旧 cookie 失效 | ✅ |
 
 跑测试：
 
@@ -140,6 +142,7 @@
 | `GET` | `/api/days` | 日期索引：哪天有几条，给下拉框用 |
 | `GET` | `/api/persons?limit=` | 人物表：名字 + 往来条数，给「按人看」下拉用（群名已排除，别名已合并） |
 | `POST` | `/api/persons/rebuild` | 从现有消息重新归纳人物表，幂等；导入后可跑一次 |
+| `GET` | `/api/persons/suggest?limit=` | 「看着是同一个人」的候选（去括号/符号后同名），给「看看该并的」用；宁漏不误并 |
 | `GET` | `/api/aliases` | 别名表：哪些名字并到了谁名下 |
 | `POST` | `/api/aliases` | 把 `{name}` 并到 `{person}` 名下；会成环时 422 |
 | `DELETE` | `/api/aliases/{name}` | 撤销一次合并 |
@@ -147,7 +150,9 @@
 | `GET` | `/api/cost` | 调了几次模型、今天/累计花了多少钱（区分高峰价） |
 | `POST` | `/api/chat` | 提问：检索命中才调模型，返回答案 + 引用；没配 Key 回 503 |
 | `POST` | `/api/draft` | 拟稿：`theirs` + `intent` → 2~3 条候选（只出草稿） |
-| `GET` | `/api/health` | 条数、库体积、`llm`（Key 是否已配） |
+| `GET` | `/api/health` | 条数、库体积、`llm`（Key 是否已配）、`auth`（是否设了口令） |
+| `POST` | `/api/login` | 用 `ME_PASSWORD` 换一个 30 天有效的 cookie |
+| `POST` | `/api/logout` | 清掉 cookie |
 
 ---
 

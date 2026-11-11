@@ -38,12 +38,15 @@ cp .env.example .env && chmod 600 .env
 # 编辑 .env，填 DEEPSEEK_API_KEY；把 HOST 改成 127.0.0.1（Caddy 在前面挡着）
 ```
 
-`.env` 里在服务器上要改的两行：
+`.env` 里在服务器上要改的三行：
 
 ```
 ME_HOST=127.0.0.1
 ME_PORT=8000
+ME_PASSWORD=给自己定一个口令
 ```
+
+> `ME_PASSWORD` 不填，整库就对着公网裸奔：任何人扫到域名都能读、能删、能导走。填了之后首页先要输一次口令，cookie 管 30 天。
 
 ## 三、开机自启（systemd）
 
@@ -85,7 +88,15 @@ scp backups/me-20261111-210315.db ubuntu@<服务器IP>:/srv/digital-me/data/me.d
 
 然后重启服务：`sudo systemctl restart digital-me`。打开页面右上角条数应该对得上。
 
-## 六、每天的备份
+## 六、部署后的验收（五条都过才算完）
+
+1. 手机用**流量**（不是 WiFi）打开 `https://me.你的域名`，地址栏有小锁
+2. 未登录时直接访问首页会被跳到登录页；`curl -sI https://me.你的域名/api/messages` 返回 401（不是 200、不是 500）
+3. 输口令进去，右上角条数与本机一致
+4. 记一条 → 本机刷新能看到（或反过来）；问答能引用到真实记录
+5. 删一条测试数据 → `scripts/restore.ps1` 从最近备份恢复，条数回来
+
+## 七、每天的备份
 
 服务器上：
 

@@ -6,6 +6,7 @@
 
 import hashlib
 import json
+import re
 import sqlite3
 from datetime import datetime, timedelta
 from typing import Any
@@ -544,6 +545,52 @@ def list_persons(limit: int = 300) -> list[dict[str, Any]]:
     ]
     out.sort(key=lambda x: (-x["count"], x["name"]))
     return out[:limit]
+
+_BRACKETED = re.compile(r"[（(][^）)]{0,16}[）)]")
+_NOT_NAME_CHARS = re.compile(r"[\s\W_]+", re.UNICODE)
+
+
+def norm_name(name: str) -> str:
+    """把名字压成可比较的形状：去括号备注、去符号与 emoji、忽略大小写。"""
+    s = _BRACKETED.sub("", name or "")
+    s = _NOT_NAME_CHARS.sub("", s)
+    return s.lower()
+
+
+def suggest_aliases(limit: int = 100) -> list[dict[str, Any]]:
+    """找出「看着是同一个人」的候选，交给前端一键合并。
+
+    只做保守规则：去掉括号备注与符号后完全相同，才建议合并。
+    宁可漏，不误并——误并会让两个人混成一个，比漏并严重。
+    """
+    people = list_persons(limit=5000)
+    buckets: dict[str, list[dict[str, Any]]] = {}
+    for p in people:
+        key = norm_name(p["name"])
+        if key:
+            buckets.setdefault(key, []).append(p)
+
+    out: list[dict[str, Any]] = []
+    for key, group in buckets.items():
+        if len(group) < 2:
+            continue
+        group.sort(key=lambda x: (-x["count"], len(x["name"])))
+        target = group[0]
+        for other in group[1:]:
+            if other["count"] <= 0 or other["name"] == target["name"]:
+                continue
+            out.append(
+                {
+                    "name": other["name"],
+                    "person": target["name"],
+                    "count": other["count"],
+                    "person_count": target["count"],
+                    "reason": "去掉括号与符号后同名",
+                }
+            )
+    out.sort(key=lambda x: (-(x["count"] + x["person_count"]), x["name"]))
+    return out[:limit]
+
 
 def sample_by_scene(limit_each: int = 4) -> dict[str, list[str]]:
     """按长度分档挑我自己的话当语气样本：短回复 / 日常 / 长一点。"""
